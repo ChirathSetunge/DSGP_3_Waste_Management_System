@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Dashboard</title>
+</head>
+<body>
+    <h1>Driver Dashboard</h1>
+    <section>
+        <h2>Route Details</h2>
+        <p><b>Start Time:</b> {{ start_time.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        <p><b>ETA:</b> {{ eta.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        <p><b>Total Houses:</b> {{ total_houses }}</p>
+    </section>
+    <section>
+        <h2>Actions</h2>
+        <ul>
+            <li><a href="{{ url_for('shared.waste_collection_map') }}">Waste Collection Map</a></li>
+            <li><a href="{{ url_for('shared.driver_chatbot') }}">Access Chatbot</a></li>
+        </ul>
+
+    </section>
+</body>
+</html>
