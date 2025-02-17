@@ -1,0 +1,26 @@
+from flask import Flask, render_template
+from shared import shared_bp, db
+
+app = Flask(__name__)
+
+# Application Configuration
+app.secret_key = 'your_secret_key'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Initialize the database
+db.init_app(app)
+
+# Register the shared blueprint
+app.register_blueprint(shared_bp, url_prefix='/shared')
+
+# Home Route
+@app.route('/')
+def home():
+    return render_template('home.html')
+
+if __name__ == '__main__':
+    # Create database tables if they don't exist
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
