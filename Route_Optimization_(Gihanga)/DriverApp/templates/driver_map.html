@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Driver Map - Step-by-Step with Simulated Driver Position</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet & Turf -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f0;
+    }
+    header {
+      background-color: #2c3e50;
+      color: white;
+      text-align: center;
+      padding: 10px;
+      font-size: 18px;
+    }
+
+    /* Make the bottom panel smaller (100px) to give more space to the map */
+    #map {
+      width: 100%;
+      height: calc(100vh - 100px);
+    }
+
+    #directionControl {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 100px; /* reduced from 160px */
+      background-color: #2c3e50;
+      color: #fff;
+      z-index: 9999;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      transition: all 0.3s ease;
+      overflow: hidden;
+    }
+
+    #startBtn {
+      background-color: #2c3e50;
+      color: #fff;
+      border: 2px solid #fff;
+      border-radius: 6px;
+      font-size: 20px;
+      padding: 10px 40px;
+      cursor: pointer;
+      transition: opacity 0.3s ease;
+    }
+
+    #stepContainer {
+      width: 100%;
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      padding: 10px;
+    }
+
+    #directionText {
+      color: #fff;
+      font-size: 16px;
+      text-align: center;
+      margin-bottom: 10px;
+      min-height: 40px;
+    }
+
+    #nextBtn {
+      background-color: #3d5060;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      padding: 10px 20px;
+      cursor: pointer;
+    }
+
+    .fadeOut {
+      opacity: 0 !important;
+    }
+    .fadeIn {
+      display: flex !important;
+      opacity: 1 !important;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h2>Driver Map</h2>
+    <p>Vehicle No: {{ vehicle_no }}</p>
+  </header>
+
+  <div id="map"></div>
+
+  <!-- Bottom Panel -->
+  <div id="directionControl">
+    <!-- START BUTTON -->
+    <button id="startBtn">Start</button>
+
+    <!-- STEP CONTAINER (direction text + next button) -->
+    <div id="stepContainer">
+      <div id="directionText"></div>
+      <button id="nextBtn">Next</button>
+    </div>
+  </div>
+
+  <script>
+    // Get the vehicle number from the backend (via Flask template variable)
+    var vehicleNo = "{{ vehicle_no }}";
+
+    // Define routes for different drivers (up to 3 drivers)
+    const driverRoutes = {
+      "PF-1234": {
+        points: {
+          A: { lat: 6.837101, lon: 79.869292 },
+          B: { lat: 6.835698, lon: 79.867392 },
+          C: { lat: 6.832870, lon: 79.868815 },
+          D: { lat: 6.830379, lon: 79.867886 },
+          E: { lat: 6.828325, lon: 79.871037 },
+          F: { lat: 6.826814, lon: 79.871954 }
+        }
+      },
+      "PF-5678": {
+        points: {
+          A: { lat: 6.840000, lon: 79.870000 },
+          B: { lat: 6.838000, lon: 79.868000 },
+          C: { lat: 6.836000, lon: 79.866000 },
+          D: { lat: 6.834000, lon: 79.864000 },
+          E: { lat: 6.832000, lon: 79.862000 },
+          F: { lat: 6.830000, lon: 79.860000 }
+        }
+      },
+      "PF-9012": {
+        points: {
+          A: { lat: 6.825000, lon: 79.875000 },
+          B: { lat: 6.823000, lon: 79.873000 },
+          C: { lat: 6.821000, lon: 79.871000 },
+          D: { lat: 6.819000, lon: 79.869000 },
+          E: { lat: 6.817000, lon: 79.867000 },
+          F: { lat: 6.815000, lon: 79.865000 }
+        }
+      }
+    };
+
+    // Select the route for the logged-in driver; fallback to PF-1234 if not found.
+    const routeData = driverRoutes[vehicleNo] || driverRoutes["PF-1234"];
+    const points = routeData.points;
+
+    //  Initialize the Map
+    const map = L.map("map").setView([6.8330, 79.8690], 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© OpenStreetMap contributors",
+    }).addTo(map);
+
+    // We'll create a "driverMarker" after we build the route
+    let driverMarker = null;
+
+
+    // Overpass + Weighted Graph Setup
+    const OVERPASS_API_URL =
+      "https://overpass-api.de/api/interpreter?data=[out:json];way[highway](6.82,79.85,6.85,79.88);out geom;";
+
+    const roadTypeWeights = {
+      motorway: 1,
+      primary: 1.2,
+      secondary: 1.5,
+      tertiary: 1.8,
+      residential: 2,
+      service: 2.5,
+      path: 4,
+    };
+
+    // Example roads with garbage
+    const roadsWithGarbage = new Set([
+      "6.832870,79.868815",
+      "6.830379,79.867886",
+      "6.828325,79.871037",
+      "6.826814,79.871954"
+    ]);
+
+    async function fetchRoadData() {
+      try {
+        const response = await fetch(OVERPASS_API_URL);
+        if (!response.ok) {
+          throw new Error(`Error fetching road data: ${response.statusText}`);
+        }
+        return await response.json();
+      } catch (error) {
+        console.error("Road data fetch failed:", error);
+        return null;
+      }
+    }
+
+    //  Build Weighted Graph & Store Road Names
+    function buildWeightedGraph(roadData) {
+      const graph = {};
+
+      roadData.elements.forEach((way) => {
+        if (way.type === "way" && way.geometry) {
+          const roadType = way.tags.highway || "unknown";
+          const wayName = way.tags.name || "";
+          const wayRef = way.tags.ref || "";
+          const combinedName = (wayName && wayRef)
+            ? `${wayName} (${wayRef})`
+            : (wayName || wayRef || "Unnamed Road");
+
+          let baseWeight = roadTypeWeights[roadType] || 2;
+          const coords = way.geometry;
+
+          for (let i = 0; i < coords.length - 1; i++) {
+            const start = coords[i];
+            const end = coords[i + 1];
+
+            const distanceKm = turf.distance(
+              [start.lon, start.lat],
+              [end.lon, end.lat],
+              { units: "kilometers" }
+            );
+
+            let weightFactor = baseWeight;
+            const startNode = `${start.lat},${start.lon}`;
+            const endNode = `${end.lat},${end.lon}`;
+
+            // If there's waste, reduce the weight factor
+            if (roadsWithGarbage.has(startNode) || roadsWithGarbage.has(endNode)) {
+              weightFactor *= 0.5;
+            }
+
+            const weightedDistance = distanceKm * weightFactor;
+
+            if (!graph[startNode]) graph[startNode] = {};
+            if (!graph[endNode]) graph[endNode] = {};
+
+            graph[startNode][endNode] = {
+              distance: weightedDistance,
+              roadName: combinedName
+            };
+            graph[endNode][startNode] = {
+              distance: weightedDistance,
+              roadName: combinedName
+            };
+          }
+        }
+      });
+
+      return graph;
+    }
+
+    //Find Closest Node & Bidirectional Dijkstra
+    function findClosestNode(graph, lat, lon) {
+      let closestNode = null;
+      let smallestDistance = Infinity;
+
+      for (const node in graph) {
+        const [nodeLat, nodeLon] = node.split(",").map(Number);
+        const dist = turf.distance([lon, lat], [nodeLon, nodeLat], { units: "kilometers" });
+        if (dist < smallestDistance) {
+          smallestDistance = dist;
+          closestNode = node;
+        }
+      }
+      return closestNode;
+    }
+
+    function bidirectionalDijkstra(graph, start, end) {
+      if (!graph[start] || !graph[end]) {
+        console.error(`Start or End node missing: ${start}, ${end}`);
+        return [];
+      }
+
+      const forwardDistances = { [start]: 0 };
+      const backwardDistances = { [end]: 0 };
+      const forwardPrev = {};
+      const backwardPrev = {};
+      const forwardQueue = [start];
+      const backwardQueue = [end];
+      const visitedForward = new Set();
+      const visitedBackward = new Set();
+
+      let mu = Infinity;
+      let meetingNode = null;
+
+      while (forwardQueue.length && backwardQueue.length) {
+        // Forward
+        let u = forwardQueue.reduce((a, b) => forwardDistances[a] < forwardDistances[b] ? a : b);
+        forwardQueue.splice(forwardQueue.indexOf(u), 1);
+        visitedForward.add(u);
+
+        for (const neighbor in graph[u]) {
+          if (!visitedForward.has(neighbor)) {
+            const newDist = forwardDistances[u] + graph[u][neighbor].distance;
+            if (newDist < (forwardDistances[neighbor] || Infinity)) {
+              forwardDistances[neighbor] = newDist;
+              forwardPrev[neighbor] = u;
+              forwardQueue.push(neighbor);
+            }
+            if (visitedBackward.has(neighbor)) {
+              const total = forwardDistances[neighbor] + backwardDistances[neighbor];
+              if (total < mu) {
+                mu = total;
+                meetingNode = neighbor;
+              }
+            }
+          }
+        }
+
+        // Backward
+        let v = backwardQueue.reduce((a, b) => backwardDistances[a] < backwardDistances[b] ? a : b);
+        backwardQueue.splice(backwardQueue.indexOf(v), 1);
+        visitedBackward.add(v);
+
+        for (const neighbor in graph[v]) {
+          if (!visitedBackward.has(neighbor)) {
+            const newDist = backwardDistances[v] + graph[v][neighbor].distance;
+            if (newDist < (backwardDistances[neighbor] || Infinity)) {
+              backwardDistances[neighbor] = newDist;
+              backwardPrev[neighbor] = v;
+              backwardQueue.push(neighbor);
+            }
+            if (visitedForward.has(neighbor)) {
+              const total = forwardDistances[neighbor] + backwardDistances[neighbor];
+              if (total < mu) {
+                mu = total;
+                meetingNode = neighbor;
+              }
+            }
+          }
+        }
+
+        if (forwardDistances[u] + backwardDistances[v] >= mu) {
+          break;
+        }
+      }
+
+      // Reconstruct path
+      const pathForward = [];
+      let current = meetingNode;
+      while (current) {
+        pathForward.unshift(current);
+        current = forwardPrev[current];
+      }
+      const pathBackward = [];
+      current = backwardPrev[meetingNode];
+      while (current) {
+        pathBackward.push(current);
+        current = backwardPrev[current];
+      }
+      return pathForward.concat(pathBackward);
+    }
+
+    //Build Directions & End Positions
+    function getDirectionEmoji(turnDir) {
+      switch (turnDir) {
+        case "left": return "←";
+        case "right": return "→";
+        case "straight": return "↑";
+        default: return "↑";
+      }
+    }
+
+    function bearingToCardinal(bearing) {
+      if (bearing >= 22.5 && bearing < 67.5) return "northeast";
+      if (bearing >= 67.5 && bearing < 112.5) return "east";
+      if (bearing >= 112.5 && bearing < 157.5) return "southeast";
+      if (bearing >= 157.5 && bearing < 202.5) return "south";
+      if (bearing >= 202.5 && bearing < 247.5) return "southwest";
+      if (bearing >= 247.5 && bearing < 292.5) return "west";
+      if (bearing >= 292.5 && bearing < 337.5) return "northwest";
+      return "north";
+    }
+
+    function buildDirectionsWithPositions(path, graph) {
+      const steps = [];
+      let currentStep = null;
+      let prevBearing = null;
+
+      function finalizeStep(endIndex, instruction) {
+        if (endIndex >= path.length) return;
+        const endCoordStr = path[endIndex];
+        const [endLat, endLon] = endCoordStr.split(",").map(Number);
+        steps.push({
+          instruction,
+          lat: endLat,
+          lon: endLon
+        });
+      }
+
+      for (let i = 0; i < path.length - 1; i++) {
+        const currNode = path[i];
+        const nextNode = path[i + 1];
+        const edgeData = graph[currNode]?.[nextNode];
+        if (!edgeData) continue;
+
+        const distanceM = edgeData.distance * 1000;
+        const roadName = edgeData.roadName;
+
+        // Bearing
+        const [lat1, lon1] = currNode.split(",").map(Number);
+        const [lat2, lon2] = nextNode.split(",").map(Number);
+        const b = turf.bearing(turf.point([lon1, lat1]), turf.point([lon2, lat2]));
+        const bearing = (b + 360) % 360;
+        const cardinalDir = bearingToCardinal(bearing);
+
+        // Turn direction
+        let turnDir = "straight";
+        if (prevBearing !== null) {
+          const turnAngle = (bearing - prevBearing + 360) % 360;
+          if (turnAngle > 30 && turnAngle < 180) {
+            turnDir = "right";
+          } else if (turnAngle >= 180 && turnAngle < 330) {
+            turnDir = "left";
+          }
+        }
+
+        if (!currentStep) {
+          // first step
+          currentStep = {
+            roadName,
+            totalDistance: distanceM,
+            directionText: cardinalDir,
+            arrow: getDirectionEmoji("straight"),
+            turnDir: "straight",
+            isFirstStep: true
+          };
+        } else {
+          // Attempt to merge
+          if (
+            roadName === currentStep.roadName &&
+            turnDir === "straight" &&
+            currentStep.turnDir === "straight"
+          ) {
+            currentStep.totalDistance += distanceM;
+          } else {
+            // finalize old step
+            const arrow = currentStep.arrow || "↑";
+            let instruction;
+            if (currentStep.isFirstStep) {
+              instruction = `${arrow} Head ${currentStep.directionText} on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
+            } else {
+              if (currentStep.turnDir === "straight") {
+                instruction = `${arrow} Continue on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
+              } else {
+                instruction = `${arrow} Turn ${currentStep.turnDir} onto ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
+              }
+            }
+            finalizeStep(i, instruction);
+
+            // create new step
+            currentStep = {
+              roadName,
+              totalDistance: distanceM,
+              directionText: cardinalDir,
+              arrow: getDirectionEmoji(turnDir),
+              turnDir,
+              isFirstStep: false
+            };
+          }
+        }
+        prevBearing = bearing;
+      }
+
+      // finalize last step
+      if (currentStep) {
+        const arrow = currentStep.arrow || "↑";
+        let instruction;
+        if (currentStep.isFirstStep) {
+          instruction = `${arrow} Head ${currentStep.directionText} on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
+        } else {
+          if (currentStep.turnDir === "straight") {
+            instruction = `${arrow} Continue on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
+          } else {
+            instruction = `${arrow} Turn ${currentStep.turnDir} onto ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
+          }
+        }
+        finalizeStep(path.length - 1, instruction);
+      }
+
+      return steps;
+    }
+
+    // Visualize Route & Step-by-Step
+    async function visualizeRoute() {
+      const roadData = await fetchRoadData();
+      if (!roadData || !roadData.elements) return;
+
+      // Build graph
+      const graph = buildWeightedGraph(roadData);
+
+      // For each point, find closest node
+      const pointNodes = {};
+      for (const p in points) {
+        const { lat, lon } = points[p];
+        pointNodes[p] = findClosestNode(graph, lat, lon);
+        // Place a marker
+        L.marker([lat, lon]).addTo(map).bindPopup(`Point: ${p}`);
+      }
+
+      // Build main route (A->F)
+      const order = ["A", "B", "C", "D", "E", "F"];
+      let fullPath = [];
+      for (let i = 0; i < order.length - 1; i++) {
+        const startNode = pointNodes[order[i]];
+        const endNode = pointNodes[order[i + 1]];
+        const segment = bidirectionalDijkstra(graph, startNode, endNode);
+        if (fullPath.length === 0) {
+          fullPath = segment;
+        } else {
+          fullPath = fullPath.concat(segment.slice(1));
+        }
+      }
+
+      // Return path (F->A)
+      const returnPath = bidirectionalDijkstra(graph, pointNodes["F"], pointNodes["A"]);
+
+      // Draw main route (red)
+      L.polyline(
+        fullPath.map(n => n.split(",").map(Number)),
+        { color: "red", weight: 4 }
+      ).addTo(map);
+
+      // Draw return route (blue)
+      L.polyline(
+        returnPath.map(n => n.split(",").map(Number)),
+        { color: "blue", weight: 4 }
+      ).addTo(map);
+
+      // Build directions (with positions) for each route
+      const collectionSteps = buildDirectionsWithPositions(fullPath, graph);
+      const returnSteps = buildDirectionsWithPositions(returnPath, graph);
+
+      // Combine them
+      const allSteps = [
+        { instruction: "Collection Route:", lat: null, lon: null },
+        ...collectionSteps,
+        { instruction: "Return Route:", lat: null, lon: null },
+        ...returnSteps
+      ];
+
+      // Create a "driver marker" at the very first coordinate of the entire route
+      if (fullPath.length > 0) {
+        const [startLat, startLon] = fullPath[0].split(",").map(Number);
+        driverMarker = L.marker([startLat, startLon], {
+          icon: L.icon({
+            iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+            iconSize: [35, 35],
+            iconAnchor: [17, 35]
+          })
+        }).addTo(map);
+        map.setView([startLat, startLon], 17);
+      }
+
+      // Hook up UI
+      const startBtn = document.getElementById("startBtn");
+      const stepContainer = document.getElementById("stepContainer");
+      const directionText = document.getElementById("directionText");
+      const nextBtn = document.getElementById("nextBtn");
+
+      let currentIndex = -1;
+
+      function showNextStep() {
+        currentIndex++;
+        if (currentIndex < allSteps.length) {
+          const step = allSteps[currentIndex];
+          directionText.textContent = step.instruction;
+
+          // If step has lat/lon, move the driver marker there
+          if (step.lat !== null && step.lon !== null && driverMarker) {
+            driverMarker.setLatLng([step.lat, step.lon]);
+            map.panTo([step.lat, step.lon]);
+          }
+
+          nextBtn.disabled = false;
+        } else {
+          directionText.textContent = "Route Completed!";
+          nextBtn.disabled = true;
+        }
+      }
+
+      // Start button
+      startBtn.addEventListener("click", () => {
+        // Fade out start button
+        startBtn.classList.add("fadeOut");
+        setTimeout(() => {
+          startBtn.style.display = "none";
+          stepContainer.style.display = "flex";
+          stepContainer.classList.add("fadeIn");
+          showNextStep(); // Show the first step
+        }, 300);
+      });
+
+      // Next button
+      nextBtn.addEventListener("click", () => {
+        showNextStep();
+      });
+    }
+
+    window.onload = visualizeRoute;
+  </script>
+</body>
+</html>

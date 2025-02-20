@@ -1,4 +1,4 @@
-// 🗺️ Map Initialization
+//  Map Initialization
 const map = L.map("map").setView([6.8330, 79.8690], 15);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -6,7 +6,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "© OpenStreetMap contributors",
 }).addTo(map);
 
-// 📍 Waste Collection Points
+//  Waste Collection Points
 const points = {
     A: { lat: 6.837101, lon: 79.869292 },
     B: { lat: 6.835698, lon: 79.867392 },
@@ -16,26 +16,25 @@ const points = {
     F: { lat: 6.826814, lon: 79.871954 },
 };
 
-// 🌍 Overpass API URL for road network data
+//  Overpass API URL for road network data
 const OVERPASS_API_URL =
     "https://overpass-api.de/api/interpreter?data=[out:json];way[highway](6.82,79.85,6.85,79.88);out geom;";
 
-// 🚀 Fetch road data from Overpass API
+//  Fetch road data from Overpass API
 async function fetchRoadData() {
     try {
         const response = await fetch(OVERPASS_API_URL);
         if (!response.ok) throw new Error(`Error fetching road data: ${response.statusText}`);
         const data = await response.json();
-        console.log("✅ Road data fetched successfully:", data);
+        console.log(" Road data fetched successfully:", data);
         return data;
     } catch (error) {
-        console.error("❌ Road data fetch failed:", error);
+        console.error(" Road data fetch failed:", error);
         return null;
     }
 }
 
-// 📊 **Build a Weighted Graph Using Real-World Road Distance**
-// 🚛 Adjusted Road Weights for Garbage Collection
+//  Adjusted Road Weights for waste Collection
 const roadTypeWeights = {
     motorway: 1,       // Highways - Least weight (fastest)
     primary: 1.2,      // Major roads
@@ -46,7 +45,7 @@ const roadTypeWeights = {
     path: 4            // Least preferred (walking paths)
 };
 
-// 🔄 Dummy Data: Roads with Garbage Presence (This should come from your database or API)
+//  Dummy Data: Roads with Garbage Presence (This should come from your database or API)
 const roadsWithGarbage = new Set([
     "6.832870,79.868815",  // Example roads with waste
     "6.830379,79.867886",
@@ -54,7 +53,7 @@ const roadsWithGarbage = new Set([
     "6.826814,79.871954"
 ]);
 
-// 🏗️ Build Weighted Graph Considering Garbage Collection
+//  Build Weighted Graph Considering Garbage Collection
 function buildWeightedGraph(roadData) {
     const graph = {};
 
@@ -67,7 +66,7 @@ function buildWeightedGraph(roadData) {
                 const start = way.geometry[i];
                 const end = way.geometry[i + 1];
 
-                // ✅ Compute real-world distance using Turf.js
+                //  Compute real-world distance using Turf.js
                 const distance = turf.distance(
                     [start.lon, start.lat],
                     [end.lon, end.lat],
@@ -77,7 +76,7 @@ function buildWeightedGraph(roadData) {
                 const startNode = `${start.lat},${start.lon}`;
                 const endNode = `${end.lat},${end.lon}`;
 
-                // 📌 **Check if the road has garbage**
+                // Check if the road has garbage
                 if (roadsWithGarbage.has(startNode) || roadsWithGarbage.has(endNode)) {
                     weightFactor *= 0.5;  // Reduce weight to prioritize this road
                 }
@@ -93,11 +92,11 @@ function buildWeightedGraph(roadData) {
         }
     });
 
-    console.log("✅ Weighted Graph Built with Garbage Collection Considerations:", graph);
+    console.log(" Weighted Graph Built with Garbage Collection Considerations:", graph);
     return graph;
 }
 
-// 🔍 **Find the Closest Node Using Real-World Distance**
+// Find the Closest Node Using Real-World Distance**
 function findClosestNode(graph, lat, lon) {
     let closestNode = null;
     let smallestDistance = Infinity;
@@ -105,7 +104,7 @@ function findClosestNode(graph, lat, lon) {
     for (const node in graph) {
         const [nodeLat, nodeLon] = node.split(",").map(Number);
 
-        // ✅ **Use Turf.js instead of Euclidean distance**
+        // Use Turf.js instead of Euclidean distance**
         const distance = turf.distance(
             turf.point([lon, lat]),
             turf.point([nodeLon, nodeLat]),
@@ -121,10 +120,10 @@ function findClosestNode(graph, lat, lon) {
     return closestNode;
 }
 
-// 🔄 **Bidirectional Dijkstra Algorithm for Shortest Path**
+//  **Bidirectional Dijkstra Algorithm for Shortest Path**
 function bidirectionalDijkstra(graph, start, end) {
     if (!graph[start] || !graph[end]) {
-        console.error(`❌ Start or End node missing in graph: start(${start}), end(${end})`);
+        console.error(` Start or End node missing in graph: start(${start}), end(${end})`);
         return [];
     }
 
@@ -205,8 +204,7 @@ function bidirectionalDijkstra(graph, start, end) {
     return forwardPath.concat(backwardPath);
 }
 
-// 🗺️ **Visualize the Optimized Route on the Map**
-// 🗺️ Visualize the optimized route on the map
+//  Visualize the optimized route on the map
 async function visualizeRoute() {
     const roadData = await fetchRoadData();
     if (!roadData || !roadData.elements) return;
@@ -220,7 +218,7 @@ async function visualizeRoute() {
         L.marker([lat, lon]).addTo(map).bindPopup(`Point: ${point}`);
     }
 
-    // 📍 Create a route visiting all points
+    //  Create a route visiting all points
     const pointOrder = ["A", "B", "C", "D", "E", "F"];
     let fullPath = [];
     for (let i = 0; i < pointOrder.length - 1; i++) {
@@ -231,17 +229,17 @@ async function visualizeRoute() {
     }
     fullPath.push(pointNodes["F"]);
 
-    // 🎯 Compute Direct Return Path (F to A)
+    //  Compute Direct Return Path (F to A)
     const returnPath = bidirectionalDijkstra(graph, pointNodes["F"], pointNodes["A"]);
 
-    // 🛣️ Draw the collection route in **red**
+    //  Draw the collection route in **red**
     L.polyline(fullPath.map(node => node.split(",").map(Number)), { color: "red", weight: 4 }).addTo(map);
 
-    // 🔄 Draw the **returning** path in **blue**
+    //  Draw the **returning** path in **blue**
     L.polyline(returnPath.map(node => node.split(",").map(Number)), { color: "blue", weight: 4 }).addTo(map);
 }
 
-// ✅ Run visualization after page load
+//  Run visualization after page load
 window.onload = function() {
     visualizeRoute();
 };
