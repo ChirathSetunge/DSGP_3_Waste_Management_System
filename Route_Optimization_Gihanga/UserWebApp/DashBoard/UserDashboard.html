@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard</title>
+    <link rel="stylesheet" href="UserDashboard.css">
+</head>
+<body>
+    <header>
+        <h1>Waste Collection Dashboard</h1>
+        <p>Tomorrow's Waste Collection: <span id="wasteType">Solid Waste</span></p>
+    </header>
+    <main>
+        <div class="bin-container">
+            <!-- "Have" Section -->
+            <div class="bin-section">
+                <img src="https://cdn-icons-png.flaticon.com/512/2296/2296400.png" alt="Have Waste Icon">
+                <h2>Have</h2>
+                <button onclick="markWaste('have')">Mark</button>
+            </div>
+
+            <!-- "Don't Have" Section -->
+            <div class="bin-section">
+                <img src="https://cdn-icons-png.flaticon.com/512/620/620836.png" alt="Don't Have Waste Icon">
+                <h2>Don't Have</h2>
+                <button onclick="markWaste('no')">Mark</button>
+            </div>
+        </div>
+    </main>
+    <script src="UserDashboard.js"></script>
+</body>
+</html>
