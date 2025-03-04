@@ -86,34 +86,3 @@ def driver_dashboard():
         total_houses=total_houses
     )
 
-
-@shared_bp.route('/driver/waste-collection-map')
-def waste_collection_map():
-    # Ensure the driver is logged in
-    vehicle_no = session.get('driver_vehicle_no')
-    if not vehicle_no:
-        flash('You must log in to access this page.', 'danger')
-        return redirect(url_for('shared.driver_login'))
-
-    # Example route data
-    route_data = [
-        {"id": "A", "lat": 6.837101, "lon": 79.869292},
-        {"id": "B", "lat": 6.835698, "lon": 79.867392},
-        {"id": "C", "lat": 6.832870, "lon": 79.868815},
-        {"id": "D", "lat": 6.830379, "lon": 79.867886},
-        {"id": "E", "lat": 6.828325, "lon": 79.871037},
-        {"id": "F", "lat": 6.826814, "lon": 79.871954},
-    ]
-
-    return render_template(
-        'driver_map.html',
-        route_data=route_data,
-        vehicle_no=vehicle_no
-    )
-
-
-
-@shared_bp.route('/driver/chatbot')
-def driver_chatbot():
-    # Placeholder for the chatbot page
-    return "<h1>Chatbot is under construction. Please check back later!</h1>"
