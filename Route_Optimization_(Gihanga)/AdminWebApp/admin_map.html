@@ -21,14 +21,14 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
 
   <script>
-    // 1. MAP SETUP
+    // MAP SETUP
     const map = L.map("map").setView([6.8613, 79.8643], 15);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "© OpenStreetMap contributors",
     }).addTo(map);
 
-    // 2. DATA: Depot + 18 citizen home locations
+    //  DATA: Depot + 18 citizen home locations
     const depot = { lat: 6.8613, lon: 79.8643 };
     const citizenPoints = [
       {lat: 6.860520, lon: 79.864030},
@@ -51,10 +51,10 @@
       {lat: 6.852966, lon: 79.865293}
     ];
 
-    // 3. DRIVER COLORS
+    //  DRIVER COLORS
     const driverColors = ["red", "blue", "green"];
 
-    // 4. OVERPASS CONFIG + WEIGHTS
+    //  OVERPASS CONFIG + WEIGHTS
     const OVERPASS_API_URL =
       "https://overpass-api.de/api/interpreter?data=[out:json];way[highway](6.80,79.84,6.87,79.89);out geom;";
     const roadTypeWeights = {
@@ -68,7 +68,7 @@
     };
     const roadsWithGarbage = new Set([]); // If needed
 
-    // 5. FETCH ROAD DATA
+    //  FETCH ROAD DATA
     async function fetchRoadData() {
       try {
         const response = await fetch(OVERPASS_API_URL);
@@ -80,7 +80,7 @@
       }
     }
 
-    // 6. BUILD GRAPH
+    //  BUILD GRAPH
     function buildWeightedGraph(roadData) {
       const graph = {};
       roadData.elements.forEach((way) => {
@@ -109,7 +109,7 @@
       return graph;
     }
 
-    // 7. FIND NEAREST GRAPH NODE
+    //  FIND NEAREST GRAPH NODE
     function findClosestNode(graph, lat, lon) {
       let closestNode = null;
       let smallestDistance = Infinity;
@@ -124,7 +124,7 @@
       return closestNode;
     }
 
-    // 8. BIDIRECTIONAL DIJKSTRA
+    //  BIDIRECTIONAL DIJKSTRA
     function bidirectionalDijkstra(graph, start, end) {
       if (!graph[start] || !graph[end]) {
         console.error(`Start or End node missing in graph: ${start}, ${end}`);
@@ -202,7 +202,7 @@
       return pathForward.concat(pathBackward);
     }
 
-    // 9. PATH COST
+    // PATH COST
     function getPathCost(graph, path) {
       let cost = 0;
       for (let i = 0; i < path.length - 1; i++) {
@@ -214,7 +214,7 @@
       return cost;
     }
 
-    // 10. SIMPLE NEAREST NEIGHBOR TSP (Single Route)
+    //  SIMPLE NEAREST NEIGHBOR TSP (Single Route)
     function solveTSP(graph, nodes, startNode) {
       const unvisited = new Set(nodes);
       unvisited.delete(startNode);
@@ -239,14 +239,14 @@
       return route;
     }
 
-    // 11. TSP for a subset (starts and ends at the depot)
+    // TSP for a subset (starts and ends at the depot)
     function solveTSPForSubset(graph, subsetNodes, depotNode) {
       const allNodes = new Set(subsetNodes);
       allNodes.add(depotNode);
       return solveTSP(graph, allNodes, depotNode);
     }
 
-    // 12. MAIN FUNCTION: Build and visualize multi-driver routes
+    //  MAIN FUNCTION: Build and visualize multi-driver routes
     async function visualizeMultiDriverRoutes() {
       const roadData = await fetchRoadData();
       if (!roadData || !roadData.elements) {
@@ -255,7 +255,7 @@
       }
       const graph = buildWeightedGraph(roadData);
 
-      // (A) Mark the depot with a distinct style (large yellow circle with black border)
+      //  Mark the depot with a distinct style (large yellow circle with black border)
       L.circleMarker([depot.lat, depot.lon], {
         radius: 10,
         color: "black",
@@ -265,28 +265,28 @@
       }).addTo(map)
         .bindPopup("Depot: Dehiwala Mount Lavinia Municipal Council");
 
-      // (B) Get graph nodes for depot and citizens
+      //  Get graph nodes for depot and citizens
       const depotNode = findClosestNode(graph, depot.lat, depot.lon);
       const citizenNodes = citizenPoints.map(pt => findClosestNode(graph, pt.lat, pt.lon));
 
-      // (C) Single TSP on all nodes (to suggest an order)
+      // Single TSP on all nodes (to suggest an order)
       const allNodes = new Set(citizenNodes);
       allNodes.add(depotNode);
       const fullTspRoute = solveTSP(graph, allNodes, depotNode);
       console.log("Full TSP Route (Single):", fullTspRoute);
 
-      // (D) Remove depot (first and last) to get internal order for citizens
+      //  Remove depot (first and last) to get internal order for citizens
       const internalRoute = fullTspRoute.slice(1, fullTspRoute.length - 1);
       const totalCitizens = internalRoute.length; // e.g. 18
 
-      // (E) Split the internal route into 3 roughly equal subsets
+      //  Split the internal route into 3 roughly equal subsets
       const subsetSize = Math.ceil(totalCitizens / 3);
       const subset1 = internalRoute.slice(0, subsetSize);
       const subset2 = internalRoute.slice(subsetSize, 2 * subsetSize);
       const subset3 = internalRoute.slice(2 * subsetSize);
       const driverSubsets = [subset1, subset2, subset3];
 
-      // (F) For each driver's subset, compute a mini TSP route (starting/ending at depot)
+      //  For each driver's subset, compute a mini TSP route (starting/ending at depot)
       driverSubsets.forEach((subset, index) => {
         const route = solveTSPForSubset(graph, subset, depotNode);
         console.log(`Driver ${index+1} subset route:`, route);
@@ -321,7 +321,7 @@
       });
     }
 
-    // 13. RUN THE VISUALIZATION
+    // RUN THE VISUALIZATION
     window.onload = visualizeMultiDriverRoutes;
   </script>
 </body>
