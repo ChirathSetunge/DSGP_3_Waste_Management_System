@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Map</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Include Leaflet and Turf JS libraries -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
+
+  <script>
+    // MAP SETUP
+    const map = L.map("map").setView([6.8613, 79.8643], 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© OpenStreetMap contributors",
+    }).addTo(map);
+
+    //  DATA: Depot + 18 citizen home locations
+    const depot = { lat: 6.8613, lon: 79.8643 };
+    const citizenPoints = [
+      {lat: 6.860520, lon: 79.864030},
+      {lat: 6.859603, lon: 79.864307},
+      {lat: 6.859521, lon: 79.864001},
+      {lat: 6.859508, lon: 79.863697},
+      {lat: 6.859397, lon: 79.862923},
+      {lat: 6.858234, lon: 79.864928},
+      {lat: 6.857815, lon: 79.865030},
+      {lat: 6.857400, lon: 79.865426},
+      {lat: 6.857449, lon: 79.866452},
+      {lat: 6.857283, lon: 79.866835},
+      {lat: 6.856900, lon: 79.866770},
+      {lat: 6.856251, lon: 79.866634},
+      {lat: 6.855554, lon: 79.865544},
+      {lat: 6.854615, lon: 79.866007},
+      {lat: 6.854479, lon: 79.866838},
+      {lat: 6.853883, lon: 79.867302},
+      {lat: 6.853150, lon: 79.866042},
+      {lat: 6.852966, lon: 79.865293}
+    ];
+
+    //  DRIVER COLORS
+    const driverColors = ["red", "blue", "green"];
+
+    //  OVERPASS CONFIG + WEIGHTS
+    const OVERPASS_API_URL =
+      "https://overpass-api.de/api/interpreter?data=[out:json];way[highway](6.80,79.84,6.87,79.89);out geom;";
+    const roadTypeWeights = {
+      motorway: 1,
+      primary: 1.2,
+      secondary: 1.5,
+      tertiary: 1.8,
+      residential: 2,
+      service: 2.5,
+      path: 4,
+    };
+    const roadsWithGarbage = new Set([]); // If needed
+
+    //  FETCH ROAD DATA
+    async function fetchRoadData() {
+      try {
+        const response = await fetch(OVERPASS_API_URL);
+        if (!response.ok) throw new Error(`Error fetching road data: ${response.statusText}`);
+        return await response.json();
+      } catch (error) {
+        console.error("Road data fetch failed:", error);
+        return null;
+      }
+    }
+
+    //  BUILD GRAPH
+    function buildWeightedGraph(roadData) {
+      const graph = {};
+      roadData.elements.forEach((way) => {
+        if (way.type === "way" && way.geometry) {
+          const roadType = way.tags.highway || "unknown";
+          let baseWeight = roadTypeWeights[roadType] || 2;
+          const coords = way.geometry;
+          for (let i = 0; i < coords.length - 1; i++) {
+            const start = coords[i];
+            const end = coords[i + 1];
+            const distanceKm = turf.distance([start.lon, start.lat], [end.lon, end.lat], { units: "kilometers" });
+            let weightFactor = baseWeight;
+            const startNode = `${start.lat},${start.lon}`;
+            const endNode = `${end.lat},${end.lon}`;
+            if (roadsWithGarbage.has(startNode) || roadsWithGarbage.has(endNode)) {
+              weightFactor *= 0.5;
+            }
+            const weightedDistance = distanceKm * weightFactor;
+            if (!graph[startNode]) graph[startNode] = {};
+            if (!graph[endNode]) graph[endNode] = {};
+            graph[startNode][endNode] = weightedDistance;
+            graph[endNode][startNode] = weightedDistance;
+          }
+        }
+      });
+      return graph;
+    }
+
+    //  FIND NEAREST GRAPH NODE
+    function findClosestNode(graph, lat, lon) {
+      let closestNode = null;
+      let smallestDistance = Infinity;
+      for (const node in graph) {
+        const [nodeLat, nodeLon] = node.split(",").map(Number);
+        const dist = turf.distance([lon, lat], [nodeLon, nodeLat], { units: "kilometers" });
+        if (dist < smallestDistance) {
+          smallestDistance = dist;
+          closestNode = node;
+        }
+      }
+      return closestNode;
+    }
+
+    //  BIDIRECTIONAL DIJKSTRA
+    function bidirectionalDijkstra(graph, start, end) {
+      if (!graph[start] || !graph[end]) {
+        console.error(`Start or End node missing in graph: ${start}, ${end}`);
+        return [];
+      }
+      const forwardDistances = { [start]: 0 };
+      const backwardDistances = { [end]: 0 };
+      const forwardPrev = {};
+      const backwardPrev = {};
+      const forwardQueue = [start];
+      const backwardQueue = [end];
+      const visitedForward = new Set();
+      const visitedBackward = new Set();
+      let mu = Infinity;
+      let meetingNode = null;
+
+      while (forwardQueue.length && backwardQueue.length) {
+        // Forward step
+        let u = forwardQueue.reduce((a, b) => forwardDistances[a] < forwardDistances[b] ? a : b);
+        forwardQueue.splice(forwardQueue.indexOf(u), 1);
+        visitedForward.add(u);
+        for (const neighbor in graph[u]) {
+          if (!visitedForward.has(neighbor)) {
+            const newDist = forwardDistances[u] + graph[u][neighbor];
+            if (newDist < (forwardDistances[neighbor] || Infinity)) {
+              forwardDistances[neighbor] = newDist;
+              forwardPrev[neighbor] = u;
+              forwardQueue.push(neighbor);
+            }
+            if (visitedBackward.has(neighbor)) {
+              const total = forwardDistances[neighbor] + backwardDistances[neighbor];
+              if (total < mu) {
+                mu = total;
+                meetingNode = neighbor;
+              }
+            }
+          }
+        }
+        // Backward step
+        let v = backwardQueue.reduce((a, b) => backwardDistances[a] < backwardDistances[b] ? a : b);
+        backwardQueue.splice(backwardQueue.indexOf(v), 1);
+        visitedBackward.add(v);
+        for (const neighbor in graph[v]) {
+          if (!visitedBackward.has(neighbor)) {
+            const newDist = backwardDistances[v] + graph[v][neighbor];
+            if (newDist < (backwardDistances[neighbor] || Infinity)) {
+              backwardDistances[neighbor] = newDist;
+              backwardPrev[neighbor] = v;
+              backwardQueue.push(neighbor);
+            }
+            if (visitedForward.has(neighbor)) {
+              const total = forwardDistances[neighbor] + backwardDistances[neighbor];
+              if (total < mu) {
+                mu = total;
+                meetingNode = neighbor;
+              }
+            }
+          }
+        }
+        if (forwardDistances[u] + backwardDistances[v] >= mu) break;
+      }
+      // Reconstruct path
+      const pathForward = [];
+      let current = meetingNode;
+      while (current) {
+        pathForward.unshift(current);
+        current = forwardPrev[current];
+      }
+      const pathBackward = [];
+      current = backwardPrev[meetingNode];
+      while (current) {
+        pathBackward.push(current);
+        current = backwardPrev[current];
+      }
+      return pathForward.concat(pathBackward);
+    }
+
+    // PATH COST
+    function getPathCost(graph, path) {
+      let cost = 0;
+      for (let i = 0; i < path.length - 1; i++) {
+        const a = path[i], b = path[i+1];
+        if (graph[a] && graph[a][b]) {
+          cost += graph[a][b];
+        }
+      }
+      return cost;
+    }
+
+    //  SIMPLE NEAREST NEIGHBOR TSP (Single Route)
+    function solveTSP(graph, nodes, startNode) {
+      const unvisited = new Set(nodes);
+      unvisited.delete(startNode);
+      const route = [startNode];
+      let current = startNode;
+      while (unvisited.size > 0) {
+        let bestNeighbor = null;
+        let bestCost = Infinity;
+        unvisited.forEach(neighbor => {
+          const segment = bidirectionalDijkstra(graph, current, neighbor);
+          const cost = getPathCost(graph, segment);
+          if (cost < bestCost) {
+            bestCost = cost;
+            bestNeighbor = neighbor;
+          }
+        });
+        route.push(bestNeighbor);
+        unvisited.delete(bestNeighbor);
+        current = bestNeighbor;
+      }
+      route.push(startNode); // Return to depot
+      return route;
+    }
+
+    // TSP for a subset (starts and ends at the depot)
+    function solveTSPForSubset(graph, subsetNodes, depotNode) {
+      const allNodes = new Set(subsetNodes);
+      allNodes.add(depotNode);
+      return solveTSP(graph, allNodes, depotNode);
+    }
+
+    //  MAIN FUNCTION: Build and visualize multi-driver routes
+    async function visualizeMultiDriverRoutes() {
+      const roadData = await fetchRoadData();
+      if (!roadData || !roadData.elements) {
+        alert("Failed to fetch Overpass data.");
+        return;
+      }
+      const graph = buildWeightedGraph(roadData);
+
+      //  Mark the depot with a distinct style (large yellow circle with black border)
+      L.circleMarker([depot.lat, depot.lon], {
+        radius: 10,
+        color: "black",
+        weight: 2,
+        fillColor: "yellow",
+        fillOpacity: 1
+      }).addTo(map)
+        .bindPopup("Depot: Dehiwala Mount Lavinia Municipal Council");
+
+      //  Get graph nodes for depot and citizens
+      const depotNode = findClosestNode(graph, depot.lat, depot.lon);
+      const citizenNodes = citizenPoints.map(pt => findClosestNode(graph, pt.lat, pt.lon));
+
+      // Single TSP on all nodes (to suggest an order)
+      const allNodes = new Set(citizenNodes);
+      allNodes.add(depotNode);
+      const fullTspRoute = solveTSP(graph, allNodes, depotNode);
+      console.log("Full TSP Route (Single):", fullTspRoute);
+
+      //  Remove depot (first and last) to get internal order for citizens
+      const internalRoute = fullTspRoute.slice(1, fullTspRoute.length - 1);
+      const totalCitizens = internalRoute.length; // e.g. 18
+
+      //  Split the internal route into 3 roughly equal subsets
+      const subsetSize = Math.ceil(totalCitizens / 3);
+      const subset1 = internalRoute.slice(0, subsetSize);
+      const subset2 = internalRoute.slice(subsetSize, 2 * subsetSize);
+      const subset3 = internalRoute.slice(2 * subsetSize);
+      const driverSubsets = [subset1, subset2, subset3];
+
+      //  For each driver's subset, compute a mini TSP route (starting/ending at depot)
+      driverSubsets.forEach((subset, index) => {
+        const route = solveTSPForSubset(graph, subset, depotNode);
+        console.log(`Driver ${index+1} subset route:`, route);
+
+        // Build the road path for the route
+        let fullPath = [];
+        for (let i = 0; i < route.length - 1; i++) {
+          const segment = bidirectionalDijkstra(graph, route[i], route[i+1]);
+          fullPath = (i === 0) ? segment : fullPath.concat(segment.slice(1));
+        }
+        // Draw the polyline for this driver's route
+        L.polyline(
+          fullPath.map(n => n.split(",").map(Number)),
+          { color: driverColors[index], weight: 5 }
+        )
+        .addTo(map)
+        .bindPopup(`Driver ${index+1} Route`);
+
+        // Also, add colored markers for each stop (excluding the depot)
+        route.forEach(node => {
+          if (node !== depotNode) {
+            const coords = node.split(",").map(Number);
+            L.circleMarker(coords, {
+              radius: 6,
+              color: driverColors[index],
+              fillColor: driverColors[index],
+              fillOpacity: 1
+            }).addTo(map)
+            .bindPopup(`Driver ${index+1} Stop`);
+          }
+        });
+      });
+    }
+
+    // RUN THE VISUALIZATION
+    window.onload = visualizeMultiDriverRoutes;
+  </script>
+</body>
+</html>

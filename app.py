@@ -1,5 +1,6 @@
 from flask import Flask, render_template
 from shared import shared_bp, db
+from Route_Optimization_Gihanga import route_optimization_bp
 
 app = Flask(__name__)
 
@@ -13,7 +14,7 @@ db.init_app(app)
 
 # Register the shared blueprint
 app.register_blueprint(shared_bp, url_prefix='/shared')
-
+app.register_blueprint(route_optimization_bp, url_prefix='/routeOptimization')
 # Home Route
 @app.route('/')
 def home():
