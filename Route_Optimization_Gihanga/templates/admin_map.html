@@ -28,30 +28,14 @@
       attribution: "© OpenStreetMap contributors",
     }).addTo(map);
 
-    //  DATA: Depot + 18 citizen home locations
+    // Depot (Municipal Council) fixed at these coordinates
     const depot = { lat: 6.8613, lon: 79.8643 };
-    const citizenPoints = [
-      {lat: 6.860520, lon: 79.864030},
-      {lat: 6.859603, lon: 79.864307},
-      {lat: 6.859521, lon: 79.864001},
-      {lat: 6.859508, lon: 79.863697},
-      {lat: 6.859397, lon: 79.862923},
-      {lat: 6.858234, lon: 79.864928},
-      {lat: 6.857815, lon: 79.865030},
-      {lat: 6.857400, lon: 79.865426},
-      {lat: 6.857449, lon: 79.866452},
-      {lat: 6.857283, lon: 79.866835},
-      {lat: 6.856900, lon: 79.866770},
-      {lat: 6.856251, lon: 79.866634},
-      {lat: 6.855554, lon: 79.865544},
-      {lat: 6.854615, lon: 79.866007},
-      {lat: 6.854479, lon: 79.866838},
-      {lat: 6.853883, lon: 79.867302},
-      {lat: 6.853150, lon: 79.866042},
-      {lat: 6.852966, lon: 79.865293}
-    ];
 
-    //  DRIVER COLORS
+    // Citizen data from Flask (Python list -> JSON)
+    const citizenPoints = {{ citizen_points|tojson }};
+    console.log("Citizen Points from DB:", citizenPoints);
+
+    // Colors for each driver's route
     const driverColors = ["red", "blue", "green"];
 
     //  OVERPASS CONFIG + WEIGHTS
@@ -80,7 +64,7 @@
       }
     }
 
-    //  BUILD GRAPH
+    //  BUILD WEIGHTED GRAPH
     function buildWeightedGraph(roadData) {
       const graph = {};
       roadData.elements.forEach((way) => {
