@@ -107,3 +107,6 @@ def predict():
     print(predictions)
 
     return jsonify({'prediction': round(float(predictions[0]), 2)})
+@household_bp.route('/msw-prediction')
+def msw_prediction():
+    return render_template('msw_predict.html')
