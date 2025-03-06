@@ -30,7 +30,7 @@ def predict():
     conn = sqlite3.connect('instance/database.db')
 
     # Get the values from the AvgWeek table
-    query_avgweek = f"SELECT [MSW Avg Weekly Waste Percentage] FROM AvgWeek WHERE [Week Number] = {Week_Number}"
+    query_avgweek = f"SELECT [MSW Average Weekly Waste Percentage] FROM AvgWeek WHERE [Week Number] = {Week_Number}"
     MSW_Average_Weekly_Waste_Percentage = pd.read_sql_query(query_avgweek, conn).iloc[0, 0]
 
     # Get the values from the RouteWeek table
@@ -110,3 +110,59 @@ def predict():
 @household_bp.route('/msw-prediction')
 def msw_prediction():
     return render_template('msw_predict.html')
+
+def get_db_connection():
+    conn = sqlite3.connect("instance/database.db")
+    conn.row_factory = sqlite3.Row
+    return conn
+
+@household_bp.route('/waste-entry')
+def waste_entry():
+    # Render the waste entry UI
+    return render_template('waste_entry.html')
+
+@household_bp.route('/waste-entry/submit', methods=['POST'])
+def submit_waste():
+    try:
+        data = request.get_json()
+        dump_date = data.get("dump_date")
+        waste_records = data.get("waste_records", {})
+
+        if not dump_date or not waste_records:
+            return jsonify({"error": "Invalid data"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Insert a record for each route with a non-empty waste amount.
+        for route, msw_amount in waste_records.items():
+            if msw_amount.strip():
+                cursor.execute(
+                    "INSERT INTO WasteData ([Dump Date], [Route], [MSW Wastage Amount (Kg)]) VALUES (?, ?, ?)",
+                    (dump_date, route, msw_amount)
+                )
+
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "Data inserted successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# New endpoint: Get Last Recorded Date for a Route
+@household_bp.route('/get-last-date', methods=['GET'])
+def get_last_date():
+    route = request.args.get('route')
+    if not route:
+        return jsonify({'error': 'No route provided'}), 400
+
+    conn = get_db_connection()
+    query = f"SELECT MAX([Dump Date]) as last_date FROM WasteData WHERE [Route] = '{route}'"
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+
+    if df.empty or df['last_date'].iloc[0] is None:
+        return jsonify({'last_date': None})
+
+    last_date = pd.to_datetime(df['last_date'].iloc[0])
+    return jsonify({'last_date': last_date.strftime('%Y-%m-%d')})
