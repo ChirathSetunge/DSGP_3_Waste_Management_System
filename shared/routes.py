@@ -87,7 +87,7 @@ def driver_dashboard():
     )
 
 # Citizen routes
-@shared_bp.route('/admin/login', methods=['GET', 'POST'])
+@shared_bp.route('/citizen/login', methods=['GET', 'POST'])
 def citizen_login():
     form = CitizenLoginForm()
     if form.validate_on_submit():
