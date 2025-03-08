@@ -124,43 +124,6 @@
     // Get the vehicle number from the backend (via Flask template variable)
     var vehicleNo = "{{ vehicle_no }}";
 
-    // Define routes for different drivers (up to 3 drivers)
-    const driverRoutes = {
-      "PF-1234": {
-        points: {
-          A: { lat: 6.837101, lon: 79.869292 },
-          B: { lat: 6.835698, lon: 79.867392 },
-          C: { lat: 6.832870, lon: 79.868815 },
-          D: { lat: 6.830379, lon: 79.867886 },
-          E: { lat: 6.828325, lon: 79.871037 },
-          F: { lat: 6.826814, lon: 79.871954 }
-        }
-      },
-      "PF-5678": {
-        points: {
-          A: { lat: 6.838792, lon: 79.866054 },
-          B: { lat: 6.838347, lon: 79.866562 },
-          C: { lat: 6.835273, lon: 79.865671 },
-          D: { lat: 6.833834, lon: 79.865611 },
-          E: { lat: 6.834366, lon: 79.863641 },
-          F: { lat: 6.836072, lon: 79.865217 }
-        }
-      },
-      "PF-9012": {
-        points: {
-          A: { lat: 6.842014, lon: 79.867043 },
-          B: { lat: 6.841934, lon: 79.868742 },
-          C: { lat: 6.841214, lon: 79.869644 },
-          D: { lat: 6.839879, lon: 79.871197 },
-          E: { lat: 6.838944, lon: 79.870972 },
-          F: { lat: 6.837075, lon: 79.869364 }
-        }
-      }
-    };
-
-    // Select the route for the logged-in driver; fallback to PF-1234 if not found.
-    const routeData = driverRoutes[vehicleNo] || driverRoutes["PF-1234"];
-    const points = routeData.points;
 
     //  Initialize the Map
     const map = L.map("map").setView([6.8330, 79.8690], 15);
@@ -365,7 +328,7 @@
       return pathForward.concat(pathBackward);
     }
 
-    //Build Directions & End Positions
+    /*//Build Directions & End Positions
     function getDirectionEmoji(turnDir) {
       switch (turnDir) {
         case "left": return "←";
@@ -493,9 +456,98 @@
       }
 
       return steps;
+    }*/
+    // Build Directions with Positions
+    function buildDirectionsWithPositions(path, graph) {
+      const steps = [];
+      let currentStep = null;
+      let prevBearing = null;
+      function finalizeStep(endIndex, instruction) {
+        if (endIndex >= path.length) return;
+        const endCoordStr = path[endIndex];
+        const [endLat, endLon] = endCoordStr.split(",").map(Number);
+        steps.push({
+          instruction,
+          lat: endLat,
+          lon: endLon
+        });
+      }
+      for (let i = 0; i < path.length - 1; i++) {
+        const currNode = path[i];
+        const nextNode = path[i + 1];
+        const edgeData = graph[currNode]?.[nextNode];
+        if (!edgeData) continue;
+        const distanceM = edgeData.distance * 1000;
+        const roadName = edgeData.roadName;
+        const [lat1, lon1] = currNode.split(",").map(Number);
+        const [lat2, lon2] = nextNode.split(",").map(Number);
+        const b = turf.bearing(turf.point([lon1, lat1]), turf.point([lon2, lat2]));
+        const bearing = (b + 360) % 360;
+        const cardinalDir = (bearing >= 22.5 && bearing < 67.5) ? "northeast" :
+                             (bearing >= 67.5 && bearing < 112.5) ? "east" :
+                             (bearing >= 112.5 && bearing < 157.5) ? "southeast" :
+                             (bearing >= 157.5 && bearing < 202.5) ? "south" :
+                             (bearing >= 202.5 && bearing < 247.5) ? "southwest" :
+                             (bearing >= 247.5 && bearing < 292.5) ? "west" :
+                             (bearing >= 292.5 && bearing < 337.5) ? "northwest" : "north";
+        let turnDir = "straight";
+        if (prevBearing !== null) {
+          const turnAngle = (bearing - prevBearing + 360) % 360;
+          if (turnAngle > 30 && turnAngle < 180) {
+            turnDir = "right";
+          } else if (turnAngle >= 180 && turnAngle < 330) {
+            turnDir = "left";
+          }
+        }
+        if (!currentStep) {
+          currentStep = {
+            roadName,
+            totalDistance: distanceM,
+            directionText: cardinalDir,
+            arrow: "↑",
+            turnDir: "straight",
+            isFirstStep: true
+          };
+        } else {
+          if (roadName === currentStep.roadName && turnDir === "straight" && currentStep.turnDir === "straight") {
+            currentStep.totalDistance += distanceM;
+          } else {
+            const arrow = currentStep.arrow || "↑";
+            let instruction;
+            if (currentStep.isFirstStep) {
+              instruction = `${arrow} Head ${currentStep.directionText} on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
+            } else {
+              instruction = currentStep.turnDir === "straight" ?
+                `${arrow} Continue on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m` :
+                `${arrow} Turn ${currentStep.turnDir} onto ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
+            }
+            finalizeStep(i, instruction);
+            currentStep = {
+              roadName,
+              totalDistance: distanceM,
+              directionText: cardinalDir,
+              arrow: (turnDir === "left") ? "←" : (turnDir === "right") ? "→" : "↑",
+              turnDir,
+              isFirstStep: false
+            };
+          }
+        }
+        prevBearing = bearing;
+      }
+      if (currentStep) {
+        const arrow = currentStep.arrow || "↑";
+        let instruction = currentStep.isFirstStep ?
+          `${arrow} Head ${currentStep.directionText} on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m` :
+          (currentStep.turnDir === "straight" ?
+          `${arrow} Continue on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m` :
+          `${arrow} Turn ${currentStep.turnDir} onto ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`);
+        finalizeStep(path.length - 1, instruction);
+      }
+      return steps;
     }
 
-    // Visualize Route & Step-by-Step
+
+    /*// Visualize Route & Step-by-Step
     async function visualizeRoute() {
       const roadData = await fetchRoadData();
       if (!roadData || !roadData.elements) return;
@@ -611,7 +663,91 @@
       });
     }
 
+    window.onload = visualizeRoute;*/
+
+    // MAIN FUNCTION: Fetch assigned route and visualize it
+    async function visualizeRoute() {
+      // Fetch the assigned route for the logged-in driver from the backend
+      const response = await fetch('/api/driver-route');
+      if (!response.ok) {
+        console.error("No route assigned or not logged in.");
+        return;
+      }
+      const data = await response.json();
+      if (data.error) {
+        console.error(data.error);
+        return;
+      }
+      const fullPath = data.route; // This should be an array of node strings ("lat,lon")
+      console.log("Retrieved assigned route:", fullPath);
+
+      // Draw the route on the map (as a red polyline)
+      L.polyline(
+        fullPath.map(n => n.split(",").map(Number)),
+        { color: "red", weight: 4 }
+      ).addTo(map);
+
+      // Fetch road data and build graph (for directions)
+      const roadData = await fetchRoadData();
+      if (!roadData || !roadData.elements) return;
+      const graph = buildWeightedGraph(roadData);
+
+      // Build directions from the stored route
+      const allSteps = buildDirectionsWithPositions(fullPath, graph);
+
+      // Create a driver marker at the start of the route
+      if (fullPath.length > 0) {
+        const [startLat, startLon] = fullPath[0].split(",").map(Number);
+        driverMarker = L.marker([startLat, startLon], {
+          icon: L.icon({
+            iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+            iconSize: [35, 35],
+            iconAnchor: [17, 35]
+          })
+        }).addTo(map);
+        map.setView([startLat, startLon], 17);
+      }
+
+      // UI: Setup step-by-step navigation
+      const startBtn = document.getElementById("startBtn");
+      const stepContainer = document.getElementById("stepContainer");
+      const directionText = document.getElementById("directionText");
+      const nextBtn = document.getElementById("nextBtn");
+      let currentIndex = -1;
+
+      function showNextStep() {
+        currentIndex++;
+        if (currentIndex < allSteps.length) {
+          const step = allSteps[currentIndex];
+          directionText.textContent = step.instruction;
+          if (step.lat !== null && step.lon !== null && driverMarker) {
+            driverMarker.setLatLng([step.lat, step.lon]);
+            map.panTo([step.lat, step.lon]);
+          }
+          nextBtn.disabled = false;
+        } else {
+          directionText.textContent = "Route Completed!";
+          nextBtn.disabled = true;
+        }
+      }
+
+      startBtn.addEventListener("click", () => {
+        startBtn.classList.add("fadeOut");
+        setTimeout(() => {
+          startBtn.style.display = "none";
+          stepContainer.style.display = "flex";
+          stepContainer.classList.add("fadeIn");
+          showNextStep();
+        }, 300);
+      });
+
+      nextBtn.addEventListener("click", () => {
+        showNextStep();
+      });
+    }
+
     window.onload = visualizeRoute;
+
   </script>
 </body>
 </html>
