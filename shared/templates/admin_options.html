@@ -9,7 +9,10 @@
     <h1>Admin Options</h1>
     <p>Welcome, choose an option below:</p>
     <ul>
-        <li><a href="#">Household waste prediction</a></li>
+        <li><a href="{{ url_for('household.msw_prediction') }}">Household MSW waste prediction</a></li>
+        <li><a href="#">Household SOW waste prediction</a></li>
+        <li><a href="#">Household MSW waste data entry</a></li>
+        <li><a href="#">Household SOW waste data entry</a></li>
         <li><a href="#">Hospital waste prediction</a></li>
         <li><a href="{{ url_for('routeOptimization.waste_collection_map_admin') }}">Route planning</a></li>
         <li><a href="#">View chatbot summary reports</a></li>

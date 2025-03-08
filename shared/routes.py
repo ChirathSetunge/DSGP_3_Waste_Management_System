@@ -1,8 +1,8 @@
 from flask import render_template, redirect, url_for, flash, session
 from datetime import datetime, timedelta
 from . import shared_bp
-from .forms import AdminLoginForm, AdminSignupForm, DriverLoginForm, DriverSignupForm
-from .models import Admin, Driver, db
+from .forms import AdminLoginForm, AdminSignupForm, DriverLoginForm, DriverSignupForm, CitizenLoginForm
+from .models import Admin, Driver, db, Citizen
 
 # Admin Routes
 @shared_bp.route('/admin/login', methods=['GET', 'POST'])
@@ -86,3 +86,18 @@ def driver_dashboard():
         total_houses=total_houses
     )
 
+# Citizen routes
+@shared_bp.route('/citizen/login', methods=['GET', 'POST'])
+def citizen_login():
+    form = CitizenLoginForm()
+    if form.validate_on_submit():
+        citizen = Citizen.query.filter_by(username=form.username.data).first()
+        if citizen and citizen.check_password(form.password.data):
+            flash('Citizen Login Successful!', 'success')
+            return redirect(url_for('shared.citizen_options'))
+        else:
+            flash('Invalid Username or Password', 'danger')
+    return render_template('citizen_login.html', form=form)
+@shared_bp.route('/citizen/options')
+def citizen_options():
+    return render_template('citizen_options.html')
