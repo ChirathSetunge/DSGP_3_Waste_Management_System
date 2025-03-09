@@ -121,9 +121,11 @@
   </div>
 
   <script>
-    // Get the vehicle number from the backend (via Flask template variable)
+{#    // Get the vehicle number from the backend (via Flask template variable)
     var vehicleNo = "{{ vehicle_no }}";
 
+    // The citizen points from the database (same as admin map)
+    const citizenPoints = {{ citizen_points|tojson }};#}
 
     //  Initialize the Map
     const map = L.map("map").setView([6.8330, 79.8690], 15);
@@ -132,13 +134,28 @@
       attribution: "© OpenStreetMap contributors",
     }).addTo(map);
 
+{#
+    // Place the SAME citizen points as the admin map
+    citizenPoints.forEach(pt => {
+      L.circleMarker([pt.lat, pt.lon], {
+        radius: 5,
+        color: "#ff0000",
+        fillColor: "#ff0000",
+        fillOpacity: 0.8
+      })
+      .addTo(map)
+      .bindPopup(`Citizen: ${pt.name}`);
+    });
+#}
+
+
     // We'll create a "driverMarker" after we build the route
     let driverMarker = null;
 
 
     // Overpass + Weighted Graph Setup
     const OVERPASS_API_URL =
-      "https://overpass-api.de/api/interpreter?data=[out:json];way[highway](6.82,79.85,6.85,79.88);out geom;";
+        "https://overpass-api.de/api/interpreter?data=[out:json];way[highway](6.80,79.84,6.87,79.89);out geom;";
 
     const roadTypeWeights = {
       motorway: 1,
@@ -665,89 +682,114 @@
 
     window.onload = visualizeRoute;*/
 
-    // MAIN FUNCTION: Fetch assigned route and visualize it
-    async function visualizeRoute() {
-      // Fetch the assigned route for the logged-in driver from the backend
-      const response = await fetch('/api/driver-route');
-      if (!response.ok) {
-        console.error("No route assigned or not logged in.");
-        return;
-      }
-      const data = await response.json();
-      if (data.error) {
-        console.error(data.error);
-        return;
-      }
-      const fullPath = data.route; // This should be an array of node strings ("lat,lon")
-      console.log("Retrieved assigned route:", fullPath);
-
-      // Draw the route on the map (as a red polyline)
-      L.polyline(
-        fullPath.map(n => n.split(",").map(Number)),
-        { color: "red", weight: 4 }
-      ).addTo(map);
-
-      // Fetch road data and build graph (for directions)
-      const roadData = await fetchRoadData();
-      if (!roadData || !roadData.elements) return;
-      const graph = buildWeightedGraph(roadData);
-
-      // Build directions from the stored route
-      const allSteps = buildDirectionsWithPositions(fullPath, graph);
-
-      // Create a driver marker at the start of the route
-      if (fullPath.length > 0) {
-        const [startLat, startLon] = fullPath[0].split(",").map(Number);
-        driverMarker = L.marker([startLat, startLon], {
-          icon: L.icon({
-            iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
-            iconSize: [35, 35],
-            iconAnchor: [17, 35]
-          })
-        }).addTo(map);
-        map.setView([startLat, startLon], 17);
-      }
-
-      // UI: Setup step-by-step navigation
-      const startBtn = document.getElementById("startBtn");
-      const stepContainer = document.getElementById("stepContainer");
-      const directionText = document.getElementById("directionText");
-      const nextBtn = document.getElementById("nextBtn");
-      let currentIndex = -1;
-
-      function showNextStep() {
-        currentIndex++;
-        if (currentIndex < allSteps.length) {
-          const step = allSteps[currentIndex];
-          directionText.textContent = step.instruction;
-          if (step.lat !== null && step.lon !== null && driverMarker) {
-            driverMarker.setLatLng([step.lat, step.lon]);
-            map.panTo([step.lat, step.lon]);
-          }
-          nextBtn.disabled = false;
-        } else {
-          directionText.textContent = "Route Completed!";
-          nextBtn.disabled = true;
+    // MAIN: load the assigned route from driver_routes and visualize
+    async function loadAssignedStops() {
+      try {
+        // 1) Fetch route data from /routeOptimization/api/driver-route
+        const response = await fetch('/routeOptimization/api/driver-route');
+        if (!response.ok) {
+          console.error("No route assigned or not logged in.");
+          return;
         }
+        const data = await response.json();
+        if (data.error) {
+          console.error(data.error);
+          return;
+        }
+        // route is an array of lat,lon strings from driver_routes
+        const routePoints = data.route;
+        console.log("Assigned route:", routePoints);
+
+        // 2) Convert them to lat/lon arrays
+        const latLngs = routePoints.map(pt => {
+          const [latStr, lonStr] = pt.split(",");
+          return [parseFloat(latStr), parseFloat(lonStr)];
+        });
+
+        // 3) Place circle markers for each assigned location
+        latLngs.forEach((coord, idx) => {
+          L.circleMarker(coord, {
+            radius: 5,
+            color: "#000000",
+            fillColor: "#000000",
+            fillOpacity: 0.8
+          })
+          .addTo(map)
+          .bindPopup(`Stop #${idx + 1}`);
+        });
+
+        // 4) Draw a red polyline if there's more than one stop
+        if (latLngs.length > 1) {
+          L.polyline(latLngs, { color: "red", weight: 4 }).addTo(map);
+        }
+
+        // 5) Zoom to fit all stops
+        if (latLngs.length > 0) {
+          map.fitBounds(latLngs);
+        }
+
+        // 6) If you want step-by-step directions, build Weighted Graph
+        const roadData = await fetchRoadData();
+        if (!roadData || !roadData.elements) return;
+        const graph = buildWeightedGraph(roadData);
+
+        // Build direction steps from your route
+        const allSteps = buildDirectionsWithPositions(routePoints, graph);
+
+        // 7) Place a driver marker at the first coordinate
+        if (latLngs.length > 0) {
+          driverMarker = L.marker(latLngs[0], {
+            icon: L.icon({
+              iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+              iconSize: [35, 35],
+              iconAnchor: [17, 35]
+            })
+          }).addTo(map);
+          map.setView(latLngs[0], 17);
+        }
+
+        // 8) Step-by-step UI
+        const startBtn = document.getElementById("startBtn");
+        const stepContainer = document.getElementById("stepContainer");
+        const directionText = document.getElementById("directionText");
+        const nextBtn = document.getElementById("nextBtn");
+        let currentIndex = -1;
+
+        function showNextStep() {
+          currentIndex++;
+          if (currentIndex < allSteps.length) {
+            const step = allSteps[currentIndex];
+            directionText.textContent = step.instruction;
+            if (step.lat !== null && step.lon !== null && driverMarker) {
+              driverMarker.setLatLng([step.lat, step.lon]);
+              map.panTo([step.lat, step.lon]);
+            }
+            nextBtn.disabled = false;
+          } else {
+            directionText.textContent = "Route Completed!";
+            nextBtn.disabled = true;
+          }
+        }
+
+        startBtn.addEventListener("click", () => {
+          startBtn.classList.add("fadeOut");
+          setTimeout(() => {
+            startBtn.style.display = "none";
+            stepContainer.style.display = "flex";
+            stepContainer.classList.add("fadeIn");
+            showNextStep();
+          }, 300);
+        });
+
+        nextBtn.addEventListener("click", showNextStep);
+
+      } catch (err) {
+        console.error("Failed to load assigned route:", err);
       }
-
-      startBtn.addEventListener("click", () => {
-        startBtn.classList.add("fadeOut");
-        setTimeout(() => {
-          startBtn.style.display = "none";
-          stepContainer.style.display = "flex";
-          stepContainer.classList.add("fadeIn");
-          showNextStep();
-        }, 300);
-      });
-
-      nextBtn.addEventListener("click", () => {
-        showNextStep();
-      });
     }
 
-    window.onload = visualizeRoute;
-
+    // Run on page load
+    window.onload = loadAssignedStops;
   </script>
 </body>
 </html>
