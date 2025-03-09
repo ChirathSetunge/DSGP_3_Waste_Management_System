@@ -3,9 +3,9 @@ import networkx as nx
 from datetime import datetime
 
 from Route_Optimization_Gihanga import route_optimization_bp
-from shared.models import db, Citizen, Driver, DriverRoute
+from shared.models import db, Citizen, Driver, DriverRoute, WasteAvailability
 #from Route_Optimization_Gihanga.models import db, Citizen, Driver, DriverRoute
-
+from shared.forms import CitizenLoginForm
 
 @route_optimization_bp.route('/waste-collection-map-admin')
 def waste_collection_map_admin():
@@ -112,3 +112,32 @@ def get_driver_route():
         "assigned_at": driver_route.assigned_at.isoformat()
     })
 
+
+@route_optimization_bp.route('/citizen/waste_availability', methods=['GET', 'POST'])
+def citizen_waste_availability():
+    # Check if the citizen is logged in
+    if 'citizen_username' not in session:
+        flash('Please login to access this page', 'danger')
+        return redirect(url_for('shared.citizen_login'))  # Ensure this endpoint exists in shared/routes.py
+
+    if request.method == 'POST':
+        if request.form.get('has_waste') == 'true':
+            # Record the citizen's waste availability with the current date/time
+            new_entry = WasteAvailability(
+                username=session['citizen_username'],
+                date=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+            )
+            db.session.add(new_entry)
+            db.session.commit()
+            flash('Waste availability recorded successfully!', 'success')
+        else:
+            flash("You indicated that you don't have waste. No data recorded.", 'info')
+
+        return redirect(url_for('shared.citizen_options'))
+
+    # For GET requests, render the waste_availability template with current date info
+    return render_template(
+        'waste_availability.html',
+        waste_date=datetime.utcnow().strftime("%Y-%m-%d"),
+        waste_type="Household Waste"  # Modify as needed
+    )
