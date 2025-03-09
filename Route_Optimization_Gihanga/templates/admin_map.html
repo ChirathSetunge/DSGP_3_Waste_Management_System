@@ -460,7 +460,7 @@
       console.log("Note: In the 3-driver scenario, total fuel/distance is the sum, but completion time is determined by the slowest route.");
 
       // POST the assignments to the backend to store in the database
-      fetch('/api/assign-routes', {
+      fetch('/routeOptimization/api/assign-routes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ assignments: driverAssignments })
