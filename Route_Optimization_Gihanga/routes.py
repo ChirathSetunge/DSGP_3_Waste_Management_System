@@ -37,16 +37,25 @@ def waste_collection_map_admin():
         driver_numbers=driver_numbers
     )
 
+
 @route_optimization_bp.route('/waste-collection-map')
 def waste_collection_map():
-    # Ensure the driver is logged in
+    """
+    Driver page that displays the route assigned to the logged-in driver.
+    """
     vehicle_no = session.get('driver_vehicle_no')
     if not vehicle_no:
         flash('You must log in to access this page.', 'danger')
         return redirect(url_for('shared.driver_login'))
 
-    return render_template('driver_map.html', vehicle_no=vehicle_no)
+    # We won't do any citizen matching. We'll just pass an empty list.
+    citizen_points = []
 
+    return render_template(
+        'driver_map.html',
+        vehicle_no=vehicle_no,
+        citizen_points=citizen_points
+    )
 
 # API: Assign Routes
 @route_optimization_bp.route('/api/assign-routes', methods=['POST'])
