@@ -121,11 +121,6 @@
   </div>
 
   <script>
-{#    // Get the vehicle number from the backend (via Flask template variable)
-    var vehicleNo = "{{ vehicle_no }}";
-
-    // The citizen points from the database (same as admin map)
-    const citizenPoints = {{ citizen_points|tojson }};#}
 
     //  Initialize the Map
     const map = L.map("map").setView([6.8330, 79.8690], 15);
@@ -134,22 +129,7 @@
       attribution: "© OpenStreetMap contributors",
     }).addTo(map);
 
-{#
-    // Place the SAME citizen points as the admin map
-    citizenPoints.forEach(pt => {
-      L.circleMarker([pt.lat, pt.lon], {
-        radius: 5,
-        color: "#ff0000",
-        fillColor: "#ff0000",
-        fillOpacity: 0.8
-      })
-      .addTo(map)
-      .bindPopup(`Citizen: ${pt.name}`);
-    });
-#}
-
-
-    // We'll create a "driverMarker" after we build the route
+   // We'll create a "driverMarker" after we build the route
     let driverMarker = null;
 
 
@@ -345,135 +325,7 @@
       return pathForward.concat(pathBackward);
     }
 
-    /*//Build Directions & End Positions
-    function getDirectionEmoji(turnDir) {
-      switch (turnDir) {
-        case "left": return "←";
-        case "right": return "→";
-        case "straight": return "↑";
-        default: return "↑";
-      }
-    }
 
-    function bearingToCardinal(bearing) {
-      if (bearing >= 22.5 && bearing < 67.5) return "northeast";
-      if (bearing >= 67.5 && bearing < 112.5) return "east";
-      if (bearing >= 112.5 && bearing < 157.5) return "southeast";
-      if (bearing >= 157.5 && bearing < 202.5) return "south";
-      if (bearing >= 202.5 && bearing < 247.5) return "southwest";
-      if (bearing >= 247.5 && bearing < 292.5) return "west";
-      if (bearing >= 292.5 && bearing < 337.5) return "northwest";
-      return "north";
-    }
-
-    function buildDirectionsWithPositions(path, graph) {
-      const steps = [];
-      let currentStep = null;
-      let prevBearing = null;
-
-      function finalizeStep(endIndex, instruction) {
-        if (endIndex >= path.length) return;
-        const endCoordStr = path[endIndex];
-        const [endLat, endLon] = endCoordStr.split(",").map(Number);
-        steps.push({
-          instruction,
-          lat: endLat,
-          lon: endLon
-        });
-      }
-
-      for (let i = 0; i < path.length - 1; i++) {
-        const currNode = path[i];
-        const nextNode = path[i + 1];
-        const edgeData = graph[currNode]?.[nextNode];
-        if (!edgeData) continue;
-
-        const distanceM = edgeData.distance * 1000;
-        const roadName = edgeData.roadName;
-
-        // Bearing
-        const [lat1, lon1] = currNode.split(",").map(Number);
-        const [lat2, lon2] = nextNode.split(",").map(Number);
-        const b = turf.bearing(turf.point([lon1, lat1]), turf.point([lon2, lat2]));
-        const bearing = (b + 360) % 360;
-        const cardinalDir = bearingToCardinal(bearing);
-
-        // Turn direction
-        let turnDir = "straight";
-        if (prevBearing !== null) {
-          const turnAngle = (bearing - prevBearing + 360) % 360;
-          if (turnAngle > 30 && turnAngle < 180) {
-            turnDir = "right";
-          } else if (turnAngle >= 180 && turnAngle < 330) {
-            turnDir = "left";
-          }
-        }
-
-        if (!currentStep) {
-          // first step
-          currentStep = {
-            roadName,
-            totalDistance: distanceM,
-            directionText: cardinalDir,
-            arrow: getDirectionEmoji("straight"),
-            turnDir: "straight",
-            isFirstStep: true
-          };
-        } else {
-          // Attempt to merge
-          if (
-            roadName === currentStep.roadName &&
-            turnDir === "straight" &&
-            currentStep.turnDir === "straight"
-          ) {
-            currentStep.totalDistance += distanceM;
-          } else {
-            // finalize old step
-            const arrow = currentStep.arrow || "↑";
-            let instruction;
-            if (currentStep.isFirstStep) {
-              instruction = `${arrow} Head ${currentStep.directionText} on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
-            } else {
-              if (currentStep.turnDir === "straight") {
-                instruction = `${arrow} Continue on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
-              } else {
-                instruction = `${arrow} Turn ${currentStep.turnDir} onto ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
-              }
-            }
-            finalizeStep(i, instruction);
-
-            // create new step
-            currentStep = {
-              roadName,
-              totalDistance: distanceM,
-              directionText: cardinalDir,
-              arrow: getDirectionEmoji(turnDir),
-              turnDir,
-              isFirstStep: false
-            };
-          }
-        }
-        prevBearing = bearing;
-      }
-
-      // finalize last step
-      if (currentStep) {
-        const arrow = currentStep.arrow || "↑";
-        let instruction;
-        if (currentStep.isFirstStep) {
-          instruction = `${arrow} Head ${currentStep.directionText} on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
-        } else {
-          if (currentStep.turnDir === "straight") {
-            instruction = `${arrow} Continue on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
-          } else {
-            instruction = `${arrow} Turn ${currentStep.turnDir} onto ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
-          }
-        }
-        finalizeStep(path.length - 1, instruction);
-      }
-
-      return steps;
-    }*/
     // Build Directions with Positions
     function buildDirectionsWithPositions(path, graph) {
       const steps = [];
@@ -563,124 +415,6 @@
       return steps;
     }
 
-
-    /*// Visualize Route & Step-by-Step
-    async function visualizeRoute() {
-      const roadData = await fetchRoadData();
-      if (!roadData || !roadData.elements) return;
-
-      // Build graph
-      const graph = buildWeightedGraph(roadData);
-
-      // For each point, find closest node
-      const pointNodes = {};
-      for (const p in points) {
-        const { lat, lon } = points[p];
-        pointNodes[p] = findClosestNode(graph, lat, lon);
-        // Place a marker
-        L.marker([lat, lon]).addTo(map).bindPopup(`Point: ${p}`);
-      }
-
-      // Build main route (A->F)
-      const order = ["A", "B", "C", "D", "E", "F"];
-      let fullPath = [];
-      for (let i = 0; i < order.length - 1; i++) {
-        const startNode = pointNodes[order[i]];
-        const endNode = pointNodes[order[i + 1]];
-        const segment = bidirectionalDijkstra(graph, startNode, endNode);
-        if (fullPath.length === 0) {
-          fullPath = segment;
-        } else {
-          fullPath = fullPath.concat(segment.slice(1));
-        }
-      }
-
-      // Return path (F->A)
-      const returnPath = bidirectionalDijkstra(graph, pointNodes["F"], pointNodes["A"]);
-
-      // Draw main route (red)
-      L.polyline(
-        fullPath.map(n => n.split(",").map(Number)),
-        { color: "red", weight: 4 }
-      ).addTo(map);
-
-      // Draw return route (blue)
-      L.polyline(
-        returnPath.map(n => n.split(",").map(Number)),
-        { color: "blue", weight: 4 }
-      ).addTo(map);
-
-      // Build directions (with positions) for each route
-      const collectionSteps = buildDirectionsWithPositions(fullPath, graph);
-      const returnSteps = buildDirectionsWithPositions(returnPath, graph);
-
-      // Combine them
-      const allSteps = [
-        { instruction: "Collection Route:", lat: null, lon: null },
-        ...collectionSteps,
-        { instruction: "Return Route:", lat: null, lon: null },
-        ...returnSteps
-      ];
-
-      // Create a "driver marker" at the very first coordinate of the entire route
-      if (fullPath.length > 0) {
-        const [startLat, startLon] = fullPath[0].split(",").map(Number);
-        driverMarker = L.marker([startLat, startLon], {
-          icon: L.icon({
-            iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
-            iconSize: [35, 35],
-            iconAnchor: [17, 35]
-          })
-        }).addTo(map);
-        map.setView([startLat, startLon], 17);
-      }
-
-      // Hook up UI
-      const startBtn = document.getElementById("startBtn");
-      const stepContainer = document.getElementById("stepContainer");
-      const directionText = document.getElementById("directionText");
-      const nextBtn = document.getElementById("nextBtn");
-
-      let currentIndex = -1;
-
-      function showNextStep() {
-        currentIndex++;
-        if (currentIndex < allSteps.length) {
-          const step = allSteps[currentIndex];
-          directionText.textContent = step.instruction;
-
-          // If step has lat/lon, move the driver marker there
-          if (step.lat !== null && step.lon !== null && driverMarker) {
-            driverMarker.setLatLng([step.lat, step.lon]);
-            map.panTo([step.lat, step.lon]);
-          }
-
-          nextBtn.disabled = false;
-        } else {
-          directionText.textContent = "Route Completed!";
-          nextBtn.disabled = true;
-        }
-      }
-
-      // Start button
-      startBtn.addEventListener("click", () => {
-        // Fade out start button
-        startBtn.classList.add("fadeOut");
-        setTimeout(() => {
-          startBtn.style.display = "none";
-          stepContainer.style.display = "flex";
-          stepContainer.classList.add("fadeIn");
-          showNextStep(); // Show the first step
-        }, 300);
-      });
-
-      // Next button
-      nextBtn.addEventListener("click", () => {
-        showNextStep();
-      });
-    }
-
-    window.onload = visualizeRoute;*/
 
     // MAIN: load the assigned route from driver_routes and visualize
     async function loadAssignedStops() {
