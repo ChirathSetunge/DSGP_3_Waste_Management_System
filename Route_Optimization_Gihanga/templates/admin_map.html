@@ -231,13 +231,7 @@
       return route;
     }
 
-    /*// TSP for a subset (starts and ends at the depot)
-    function solveTSPForSubset(graph, subsetNodes, depotNode) {
-      const allNodes = new Set(subsetNodes);
-      allNodes.add(depotNode);
-      return solveTSP(graph, allNodes, depotNode);
-    }
-*/
+
     //    so we can measure total distance or draw the polyline.
     function buildFullPath(graph, route) {
       let fullPath = [];
@@ -253,84 +247,6 @@
       return fullPath;
     }
 
- /*   //  MAIN FUNCTION: Build and visualize multi-driver routes
-    async function visualizeMultiDriverRoutes() {
-      const roadData = await fetchRoadData();
-      if (!roadData || !roadData.elements) {
-        alert("Failed to fetch Overpass data.");
-        return;
-      }
-      const graph = buildWeightedGraph(roadData);
-
-      //  Mark the depot with a distinct style (large yellow circle with black border)
-      L.circleMarker([depot.lat, depot.lon], {
-        radius: 10,
-        color: "black",
-        weight: 2,
-        fillColor: "yellow",
-        fillOpacity: 1
-      }).addTo(map)
-        .bindPopup("Depot: Dehiwala Mount Lavinia Municipal Council");
-
-      //  Get graph nodes for depot and citizens
-      const depotNode = findClosestNode(graph, depot.lat, depot.lon);
-      const citizenNodes = citizenPoints.map(pt => findClosestNode(graph, pt.lat, pt.lon));
-*/
-      /*// Single TSP on all nodes (to suggest an order)
-      const allNodes = new Set(citizenNodes);
-      allNodes.add(depotNode);
-      const fullTspRoute = solveTSP(graph, allNodes, depotNode);
-      console.log("Full TSP Route (Single):", fullTspRoute);
-
-      //  Remove depot (first and last) to get internal order for citizens
-      const internalRoute = fullTspRoute.slice(1, fullTspRoute.length - 1);
-      const totalCitizens = internalRoute.length;
-
-      //  Split the internal route into 3 roughly equal subsets
-      const subsetSize = Math.ceil(totalCitizens / 3);
-      const subset1 = internalRoute.slice(0, subsetSize);
-      const subset2 = internalRoute.slice(subsetSize, 2 * subsetSize);
-      const subset3 = internalRoute.slice(2 * subsetSize);
-      const driverSubsets = [subset1, subset2, subset3];
-
-      //  For each driver's subset, compute a mini TSP route (starting/ending at depot)
-      driverSubsets.forEach((subset, index) => {
-        const route = solveTSPForSubset(graph, subset, depotNode);
-        console.log(`Driver ${index+1} subset route:`, route);
-*/
-       /* // Build the road path for the route
-        let fullPath = [];
-        for (let i = 0; i < route.length - 1; i++) {
-          const segment = bidirectionalDijkstra(graph, route[i], route[i+1]);
-          fullPath = (i === 0) ? segment : fullPath.concat(segment.slice(1));
-        }
-        // Draw the polyline for this driver's route
-        L.polyline(
-          fullPath.map(n => n.split(",").map(Number)),
-          { color: driverColors[index], weight: 5 }
-        )
-        .addTo(map)
-        .bindPopup(`Driver ${index+1} Route`);*/
-
-       /* // Also, add colored markers for each stop (excluding the depot)
-        route.forEach(node => {
-          if (node !== depotNode) {
-            const coords = node.split(",").map(Number);
-            L.circleMarker(coords, {
-              radius: 6,
-              color: driverColors[index],
-              fillColor: driverColors[index],
-              fillOpacity: 1
-            }).addTo(map)
-            .bindPopup(`Driver ${index+1} Stop`);
-          }
-        });
-      });
-    }
-
-    // RUN THE VISUALIZATION
-    window.onload = visualizeMultiDriverRoutes;
-    */
 
     // Compute estimated travel time (in minutes) for a given route
     // Assumption: travel time (min) = (distance (km) / averageSpeed * 60) + (number of stops * stopTimeMinutes)
@@ -366,9 +282,7 @@
       const depotNode = findClosestNode(graph, depot.lat, depot.lon);
       const citizenNodes = citizenPoints.map(pt => findClosestNode(graph, pt.lat, pt.lon));
 
-      // -------------------------------
       // A) Single-Driver TSP Route
-      // -------------------------------
       const allNodes = new Set(citizenNodes);
       allNodes.add(depotNode);
       const singleRoute = solveTSP(graph, allNodes, depotNode);
@@ -382,9 +296,7 @@
       console.log("Single-driver total distance:", singleRouteCost.toFixed(2), "km (approx)");
       console.log("Single-driver estimated travel time:", singleEstimatedTime.toFixed(1), "minutes");
 
-      // -------------------------------
       // B) Three-Driver Split Routes
-      // -------------------------------
       // We use the same overall TSP route ordering for splitting
       const fullTspRoute = singleRoute;
       // Remove the depot from the beginning and end
