@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, session, redirect, url_for, flash,
 import networkx as nx
 from datetime import datetime, timedelta
 import pytz
+import math
 
 from Route_Optimization_Gihanga import route_optimization_bp
 from shared.models import db, Citizen, Driver, DriverRoute, WasteAvailability
@@ -201,4 +202,115 @@ def citizen_waste_availability():
         waste_date=now_utc.strftime("%Y-%m-%d"),
         waste_type="Household Waste",
         note=note
+    )
+
+@route_optimization_bp.route('/citizen-map')
+def citizen_map():
+    if 'citizen_username' not in session:
+        flash("Please log in as a citizen first.", "danger")
+        return redirect(url_for('shared.citizen_login'))
+
+    # 1) Fetch the citizen record
+    citizen = Citizen.query.filter_by(username=session['citizen_username']).first()
+    if not citizen:
+        flash("Citizen record not found.", "danger")
+        return redirect(url_for('shared.citizen_login'))
+
+    citizen_lat = citizen.latitude
+    citizen_lon = citizen.longitude
+
+    # ---------------------------------------------------------------------
+    # 2) Check if the citizen has waste availability in the last 24 hours
+    #    (Adjust the time window as needed, e.g. 14 hours, 12 hours, etc.)
+    # ---------------------------------------------------------------------
+    time_window_hours = 24
+    cutoff = datetime.utcnow() - timedelta(hours=time_window_hours)
+
+    recent_waste = (WasteAvailability.query
+                    .filter_by(username=citizen.username)
+                    .filter(WasteAvailability.date >= cutoff.strftime("%Y-%m-%d %H:%M:%S"))
+                    .order_by(WasteAvailability.id.desc())
+                    .first())
+
+    if not recent_waste:
+        # The citizen has no waste record in the last 24 hours
+        # => Show only their house, no route
+        flash("You have not indicated any waste availability recently. No pickup route assigned.", "info")
+
+        assigned_driver_no = "N/A"
+        assigned_route = []
+        driver_start = [citizen_lat, citizen_lon]  # fallback
+    else:
+        # Citizen does have a recent waste availability
+        # => We proceed to find which driver route includes them
+        assigned_driver_no = None
+        assigned_route = None
+        TOLERANCE = 0.001
+        found_match = False
+
+        all_driver_routes = DriverRoute.query.order_by(DriverRoute.assigned_at.desc()).all()
+
+        for dr in all_driver_routes:
+            raw_points = dr.get_route()  # e.g. ["6.861,79.864","6.862,79.865"] or [[6.861,79.864], ...]
+            if not raw_points:
+                continue
+
+            parsed_points = []
+            for p in raw_points:
+                if isinstance(p, str):
+                    lat_str, lon_str = p.split(',')
+                    lat = float(lat_str)
+                    lon = float(lon_str)
+                elif isinstance(p, list) and len(p) == 2:
+                    lat = float(p[0])
+                    lon = float(p[1])
+                else:
+                    continue
+
+                parsed_points.append([lat, lon])
+
+                # Check tolerance
+                if (abs(lat - citizen_lat) < TOLERANCE and
+                    abs(lon - citizen_lon) < TOLERANCE):
+                    assigned_driver_no = dr.driver_vehicle_no
+                    assigned_route = parsed_points
+                    found_match = True
+                    break
+
+            if found_match:
+                break
+
+        if not assigned_driver_no:
+            flash("No assigned driver found for your location yet.", "info")
+            assigned_driver_no = "N/A"
+            assigned_route = []
+            driver_start = [citizen_lat, citizen_lon]
+        else:
+            # If you want the full route from DB:
+            full_raw_points = (DriverRoute.query
+                               .filter_by(driver_vehicle_no=assigned_driver_no)
+                               .order_by(DriverRoute.assigned_at.desc())
+                               .first()
+                               .get_route())
+            full_parsed = []
+            for p in full_raw_points:
+                if isinstance(p, str):
+                    lat_str, lon_str = p.split(',')
+                    lat = float(lat_str)
+                    lon = float(lon_str)
+                else:
+                    lat, lon = p[0], p[1]
+                full_parsed.append([lat, lon])
+
+            assigned_route = full_parsed
+            driver_start = assigned_route[0]
+
+    # 4) Render the template
+    return render_template(
+        'citizen_map.html',
+        citizen_lat=citizen_lat,
+        citizen_lon=citizen_lon,
+        driver_vehicle_no=assigned_driver_no,
+        driver_start=driver_start,
+        driver_route=assigned_route
     )
