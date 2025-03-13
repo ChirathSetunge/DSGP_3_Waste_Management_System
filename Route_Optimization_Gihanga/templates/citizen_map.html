@@ -54,314 +54,149 @@
     <h2>Citizen Map</h2>
     <p>Tracking your upcoming waste collection vehicle</p>
   </header>
+
   <div id="map"></div>
+
   <div id="infoPanel">
+    <div id="truckInfo">Truck: --</div>
     <div id="distanceInfo">Distance: -- km</div>
     <div id="etaInfo">ETA: -- min</div>
   </div>
 
   <script>
-    /*--------------------------------------------------
-      Define key locations based on PF-1234 route:
-      - Citizen's home is at point E.
-      - Driver's current position is assumed to be at point D.
-    --------------------------------------------------*/
-    const citizenHome = { lat: 6.828325, lon: 79.871037 }; // Point E
-    const driverStart = { lat: 6.830379, lon: 79.867886 };   // Point D
+    // ------------------------------------------------------------------
+    // Data from Flask (Jinja)
+    // ------------------------------------------------------------------
+    const citizenLat = {{ citizen_lat }};
+    const citizenLon = {{ citizen_lon }};
+    const assignedDriverNo = "{{ driver_vehicle_no }}";   // e.g. "PF-5678"
+    const driverStart = {{ driver_start|tojson }};         // e.g. [6.83, 79.86]
+    const driverRoute = {{ driver_route|tojson }};         // e.g. [[6.83,79.86],[6.832,79.865],...]
 
-    /*--------------------------------------------------
-      Map Initialization
-    --------------------------------------------------*/
-    const map = L.map("map").setView([citizenHome.lat, citizenHome.lon], 15);
+    // Constants
+    const averageSpeed = 25;    // km/h
+    const stopTimeMinutes = 2;  // minutes per pickup
+    const tolerance = 0.0003;   // lat/lon matching tolerance (~30m). Adjust as needed.
+
+    // ------------------------------------------------------------------
+    // Initialize the Leaflet map
+    // ------------------------------------------------------------------
+    const map = L.map("map").setView([citizenLat, citizenLon], 15);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "© OpenStreetMap contributors",
     }).addTo(map);
 
-    /*--------------------------------------------------
-      Marker Setup:
-      - A house marker for the citizen’s home.
-      - A driver marker that will move along the real road route.
-    --------------------------------------------------*/
-    L.marker([citizenHome.lat, citizenHome.lon], {
-      icon: L.icon({
-        iconUrl: "https://cdn-icons-png.flaticon.com/512/25/25694.png", // House icon
-        iconSize: [35, 35],
-        iconAnchor: [17, 35]
-      })
-    }).addTo(map).bindPopup("Your Home");
+    // ------------------------------------------------------------------
+    // Mark the citizen's home
+    // ------------------------------------------------------------------
+    const homeIcon = L.icon({
+      iconUrl: "https://cdn-icons-png.flaticon.com/512/25/25694.png", // house icon
+      iconSize: [35, 35],
+      iconAnchor: [17, 35]
+    });
+    L.marker([citizenLat, citizenLon], { icon: homeIcon })
+      .addTo(map)
+      .bindPopup("Your Home");
 
-    const driverMarker = L.marker([driverStart.lat, driverStart.lon], {
-      icon: L.icon({
-        iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png", // Truck icon
-        iconSize: [35, 35],
-        iconAnchor: [17, 35]
-      })
-    }).addTo(map).bindPopup("Driver");
+    // ------------------------------------------------------------------
+    // Mark the driver's start
+    // ------------------------------------------------------------------
+    const truckIcon = L.icon({
+      iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png", // truck icon
+      iconSize: [35, 35],
+      iconAnchor: [17, 35]
+    });
+    L.marker([driverStart[0], driverStart[1]], { icon: truckIcon })
+      .addTo(map)
+      .bindPopup("Driver Start");
 
-    /*--------------------------------------------------
-      Overpass API & Weighted Graph Setup
-    --------------------------------------------------*/
-    const OVERPASS_API_URL =
-      "https://overpass-api.de/api/interpreter?data=[out:json];way[highway](6.82,79.85,6.85,79.88);out geom;";
-    const roadTypeWeights = {
-      motorway: 1,
-      primary: 1.2,
-      secondary: 1.5,
-      tertiary: 1.8,
-      residential: 2,
-      service: 2.5,
-      path: 4,
-    };
-    // Example roads with garbage (affects weight)
-    const roadsWithGarbage = new Set([
-      "6.832870,79.868815",
-      "6.830379,79.867886",
-      "6.828325,79.871037",
-      "6.826814,79.871954"
-    ]);
+    // ------------------------------------------------------------------
+    // Draw the driver's entire route as a polyline (if any)
+    // ------------------------------------------------------------------
+    if (driverRoute.length > 1) {
+      const routeLatLngs = driverRoute.map(pt => [pt[0], pt[1]]);
+      L.polyline(routeLatLngs, { color: "blue", weight: 4 })
+        .addTo(map)
+        .bindPopup(`Route for Truck ${assignedDriverNo}`);
+    }
 
-    async function fetchRoadData() {
-      try {
-        const response = await fetch(OVERPASS_API_URL);
-        if (!response.ok) throw new Error(`Error fetching road data: ${response.statusText}`);
-        return await response.json();
-      } catch (error) {
-        console.error("Road data fetch failed:", error);
-        return null;
+    // ------------------------------------------------------------------
+    // Helper: compute distance between two [lat, lon] points
+    //         using Turf (units=kilometers).
+    // ------------------------------------------------------------------
+    function distanceKm(a, b) {
+      return turf.distance(
+        turf.point([a[1], a[0]]),
+        turf.point([b[1], b[0]]),
+        { units: "kilometers" }
+      );
+    }
+
+    // ------------------------------------------------------------------
+    // Helper: compute distance along the route up to a given index
+    // e.g. sum of distances route[0]->route[1] + route[1]->route[2] + ...
+    // up to route[endIndex].
+    // ------------------------------------------------------------------
+    function computePartialRouteDistance(route, endIndex) {
+      let dist = 0;
+      for (let i = 0; i < endIndex; i++) {
+        dist += distanceKm(route[i], route[i + 1]);
+      }
+      return dist;
+    }
+
+    // ------------------------------------------------------------------
+    // Find the citizen’s index in the route
+    // (We assume the route includes the citizen’s location exactly,
+    //  or within a small tolerance.)
+    // ------------------------------------------------------------------
+    let citizenIndex = -1;
+    for (let i = 0; i < driverRoute.length; i++) {
+      const latDiff = Math.abs(driverRoute[i][0] - citizenLat);
+      const lonDiff = Math.abs(driverRoute[i][1] - citizenLon);
+      if (latDiff < tolerance && lonDiff < tolerance) {
+        citizenIndex = i;
+        break;
       }
     }
 
-    function buildWeightedGraph(roadData) {
-      const graph = {};
-      roadData.elements.forEach((way) => {
-        if (way.type === "way" && way.geometry) {
-          const roadType = way.tags.highway || "unknown";
-          const wayName = way.tags.name || "";
-          const wayRef = way.tags.ref || "";
-          const combinedName = (wayName && wayRef)
-            ? `${wayName} (${wayRef})`
-            : (wayName || wayRef || "Unnamed Road");
-          let baseWeight = roadTypeWeights[roadType] || 2;
-          const coords = way.geometry;
-          for (let i = 0; i < coords.length - 1; i++) {
-            const start = coords[i];
-            const end = coords[i + 1];
-            const distanceKm = turf.distance(
-              [start.lon, start.lat],
-              [end.lon, end.lat],
-              { units: "kilometers" }
-            );
-            let weightFactor = baseWeight;
-            const startNode = `${start.lat},${start.lon}`;
-            const endNode = `${end.lat},${end.lon}`;
-            if (roadsWithGarbage.has(startNode) || roadsWithGarbage.has(endNode)) {
-              weightFactor *= 0.5;
-            }
-            const weightedDistance = distanceKm * weightFactor;
-            if (!graph[startNode]) graph[startNode] = {};
-            if (!graph[endNode]) graph[endNode] = {};
-            graph[startNode][endNode] = {
-              distance: weightedDistance,
-              roadName: combinedName
-            };
-            graph[endNode][startNode] = {
-              distance: weightedDistance,
-              roadName: combinedName
-            };
-          }
-        }
-      });
-      return graph;
+    // If found, compute the partial distance from route[0] to route[citizenIndex].
+    // Then compute total time = travelTime + stopsTime.
+    let distanceKmDisplay = 0;
+    let etaMinutesDisplay = 0;
+
+    if (citizenIndex > 0) {
+      // Distance from the driver’s start (route[0]) up to the citizen’s point
+      const partialDist = computePartialRouteDistance(driverRoute, citizenIndex);
+      // Travel time in minutes
+      const travelTimeMinutes = (partialDist / averageSpeed) * 60;
+
+      // We assume each prior house is a stop. The route might have route[0] = depot, route[1] = first citizen, etc.
+      // So the number of stops is basically "how many houses come before me?"
+      // If route[0] is the depot, and route[1] is the first house, then if I'm house #7 in the route,
+      // my index is 7, meaning I've got 6 houses ahead of me => 6 * stopTimeMinutes.
+      const numberOfStopsBeforeMe = citizenIndex - 1; // ignoring the depot at index 0
+      const stopsTimeMinutes = numberOfStopsBeforeMe * stopTimeMinutes;
+
+      const totalTime = travelTimeMinutes + stopsTimeMinutes;
+
+      distanceKmDisplay = partialDist.toFixed(2);
+      etaMinutesDisplay = totalTime.toFixed(1);
+    } else {
+      // If citizenIndex == 0, that means the citizen is route[0] => immediate
+      // If we never found them, citizenIndex = -1 => fallback direct distance
+      distanceKmDisplay = distanceKm(driverStart, [citizenLat, citizenLon]).toFixed(2);
+      // Just a naive time ignoring other stops
+      etaMinutesDisplay = ((distanceKmDisplay / averageSpeed) * 60).toFixed(1);
     }
 
-    function findClosestNode(graph, lat, lon) {
-      let closestNode = null;
-      let smallestDistance = Infinity;
-      for (const node in graph) {
-        const [nodeLat, nodeLon] = node.split(",").map(Number);
-        const dist = turf.distance([lon, lat], [nodeLon, nodeLat], { units: "kilometers" });
-        if (dist < smallestDistance) {
-          smallestDistance = dist;
-          closestNode = node;
-        }
-      }
-      return closestNode;
-    }
-
-    function bidirectionalDijkstra(graph, start, end) {
-      if (!graph[start] || !graph[end]) {
-        console.error(`Start or End node missing: ${start}, ${end}`);
-        return [];
-      }
-      const forwardDistances = { [start]: 0 };
-      const backwardDistances = { [end]: 0 };
-      const forwardPrev = {};
-      const backwardPrev = {};
-      const forwardQueue = [start];
-      const backwardQueue = [end];
-      const visitedForward = new Set();
-      const visitedBackward = new Set();
-      let mu = Infinity;
-      let meetingNode = null;
-      while (forwardQueue.length && backwardQueue.length) {
-        let u = forwardQueue.reduce((a, b) => forwardDistances[a] < forwardDistances[b] ? a : b);
-        forwardQueue.splice(forwardQueue.indexOf(u), 1);
-        visitedForward.add(u);
-        for (const neighbor in graph[u]) {
-          if (!visitedForward.has(neighbor)) {
-            const newDist = forwardDistances[u] + graph[u][neighbor].distance;
-            if (newDist < (forwardDistances[neighbor] || Infinity)) {
-              forwardDistances[neighbor] = newDist;
-              forwardPrev[neighbor] = u;
-              forwardQueue.push(neighbor);
-            }
-            if (visitedBackward.has(neighbor)) {
-              const total = forwardDistances[neighbor] + backwardDistances[neighbor];
-              if (total < mu) {
-                mu = total;
-                meetingNode = neighbor;
-              }
-            }
-          }
-        }
-        let v = backwardQueue.reduce((a, b) => backwardDistances[a] < backwardDistances[b] ? a : b);
-        backwardQueue.splice(backwardQueue.indexOf(v), 1);
-        visitedBackward.add(v);
-        for (const neighbor in graph[v]) {
-          if (!visitedBackward.has(neighbor)) {
-            const newDist = backwardDistances[v] + graph[v][neighbor].distance;
-            if (newDist < (backwardDistances[neighbor] || Infinity)) {
-              backwardDistances[neighbor] = newDist;
-              backwardPrev[neighbor] = v;
-              backwardQueue.push(neighbor);
-            }
-            if (visitedForward.has(neighbor)) {
-              const total = forwardDistances[neighbor] + backwardDistances[neighbor];
-              if (total < mu) {
-                mu = total;
-                meetingNode = neighbor;
-              }
-            }
-          }
-        }
-        if (forwardDistances[u] + backwardDistances[v] >= mu) break;
-      }
-      const pathForward = [];
-      let current = meetingNode;
-      while (current) {
-        pathForward.unshift(current);
-        current = forwardPrev[current];
-      }
-      const pathBackward = [];
-      current = backwardPrev[meetingNode];
-      while (current) {
-        pathBackward.push(current);
-        current = backwardPrev[current];
-      }
-      return pathForward.concat(pathBackward);
-    }
-
-    /*--------------------------------------------------
-      Helper Function: Compute total distance along an array of coordinates.
-    --------------------------------------------------*/
-    function computeRouteDistance(coords) {
-      let total = 0;
-      for (let i = 0; i < coords.length - 1; i++) {
-        total += turf.distance(turf.point([coords[i][1], coords[i][0]]),
-                                 turf.point([coords[i+1][1], coords[i+1][0]]),
-                                 { units: "kilometers" });
-      }
-      return total;
-    }
-
-    /*--------------------------------------------------
-      Build the Real Road Route from driverStart to citizenHome.
-      This uses the weighted graph and bidirectional Dijkstra.
-    --------------------------------------------------*/
-    async function buildRealRoute() {
-      const roadData = await fetchRoadData();
-      if (!roadData || !roadData.elements) return null;
-      const graph = buildWeightedGraph(roadData);
-      const startNode = findClosestNode(graph, driverStart.lat, driverStart.lon);
-      const endNode = findClosestNode(graph, citizenHome.lat, citizenHome.lon);
-      const routeNodes = bidirectionalDijkstra(graph, startNode, endNode);
-      if (!routeNodes.length) return null;
-      // Convert node strings ("lat,lon") into coordinate arrays [lat, lon]
-      const routeCoords = routeNodes.map(node => node.split(",").map(Number));
-      return routeCoords;
-    }
-
-    /*--------------------------------------------------
-      Simulation: Follow the computed road route.
-      - The driver marker will move along the real road path.
-      - At each simulation step, update the remaining distance and ETA.
-    --------------------------------------------------*/
-    async function simulateDriver() {
-      const routeCoords = await buildRealRoute();
-      if (!routeCoords || routeCoords.length === 0) {
-        console.error("No route computed");
-        return;
-      }
-
-      // Draw the computed road route (optional for visual feedback)
-      L.polyline(routeCoords, { color: "#888", weight: 3, dashArray: "5,5" }).addTo(map);
-
-      // Compute total route distance
-      const totalDistanceKm = computeRouteDistance(routeCoords);
-      const speedKmh = 30; // assumed constant speed
-
-      // For simulation, create a smooth list of points by interpolating between nodes
-      let smoothCoords = [];
-      const interpSteps = 20; // interpolation steps between each route coordinate
-      for (let i = 0; i < routeCoords.length - 1; i++) {
-        const start = { lat: routeCoords[i][0], lon: routeCoords[i][1] };
-        const end = { lat: routeCoords[i+1][0], lon: routeCoords[i+1][1] };
-        for (let j = 0; j < interpSteps; j++) {
-          const frac = j / interpSteps;
-          smoothCoords.push([
-            start.lat + (end.lat - start.lat) * frac,
-            start.lon + (end.lon - start.lon) * frac
-          ]);
-        }
-      }
-      // Add the final point
-      smoothCoords.push(routeCoords[routeCoords.length - 1]);
-
-      let currentStep = 0;
-      const totalSteps = smoothCoords.length;
-
-      const interval = setInterval(() => {
-        if (currentStep >= totalSteps) {
-          clearInterval(interval);
-          return;
-        }
-        const currentPos = smoothCoords[currentStep];
-        driverMarker.setLatLng(currentPos);
-        map.panTo(currentPos);
-
-        // Compute remaining distance along smoothCoords from currentStep to end
-        let remainingDistance = 0;
-        for (let i = currentStep; i < smoothCoords.length - 1; i++) {
-          remainingDistance += turf.distance(
-            turf.point([smoothCoords[i][1], smoothCoords[i][0]]),
-            turf.point([smoothCoords[i+1][1], smoothCoords[i+1][0]]),
-            { units: "kilometers" }
-          );
-        }
-        // ETA based on remaining distance
-        const etaMinutes = (remainingDistance / (speedKmh / 60)).toFixed(1);
-
-        // Update bottom panel
-        document.getElementById("distanceInfo").textContent = `Distance: ${remainingDistance.toFixed(2)} km`;
-        document.getElementById("etaInfo").textContent = `ETA: ${etaMinutes} min`;
-
-        currentStep++;
-      }, 1000); // update every 1 second (adjust as needed)
-    }
-
-    // Start simulation once the page loads.
-    window.onload = simulateDriver;
+    // ------------------------------------------------------------------
+    // Display final results
+    // ------------------------------------------------------------------
+    document.getElementById("truckInfo").textContent = `Truck: ${assignedDriverNo}`;
+    document.getElementById("distanceInfo").textContent = `Distance: ${distanceKmDisplay} km`;
+    document.getElementById("etaInfo").textContent = `ETA: ${etaMinutesDisplay} min`;
   </script>
 </body>
 </html>
