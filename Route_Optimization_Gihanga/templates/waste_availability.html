@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Waste Availability</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/waste_availability.css') }}">
 </head>
@@ -12,6 +11,8 @@
             <h1>Waste Availability</h1>
             <p><b>Date:</b> {{ waste_date }}</p>
             <p><b>Waste Type:</b> {{ waste_type }}</p>
+            <!-- Display the note about time window -->
+            <p style="color: red;">{{ note }}</p>
         </div>
 
         <form method="POST">
@@ -23,5 +24,11 @@
             <img src="{{ url_for('static', filename='images/waste_collection.png') }}" alt="Waste Collection">
         </div>
     </div>
+
+    {% if message %}
+    <script>
+        alert("{{ message }}");
+    </script>
+    {% endif %}
 </body>
 </html>

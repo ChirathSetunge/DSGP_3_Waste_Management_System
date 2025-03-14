@@ -35,6 +35,10 @@
     const citizenPoints = {{ citizen_points|tojson }};
     console.log("Citizen Points from DB:", citizenPoints);
 
+    // Pass the list of registered driver vehicle numbers from the backend
+    const driverNumbers = {{ driver_numbers|tojson }};
+    console.log("Driver Numbers:", driverNumbers);
+
     // Colors for each driver's route
     const driverColors = ["red", "blue", "green"];
 
@@ -51,6 +55,10 @@
       path: 4,
     };
     const roadsWithGarbage = new Set([]); // If needed
+
+    // Average speed (km/h) and stop time (minutes) per stop (citizen pickup)
+    const averageSpeed = 25; // km/h
+    const stopTimeMinutes = 2; // minutes per stop
 
     //  FETCH ROAD DATA
     async function fetchRoadData() {
@@ -223,74 +231,110 @@
       return route;
     }
 
-    // TSP for a subset (starts and ends at the depot)
-    function solveTSPForSubset(graph, subsetNodes, depotNode) {
-      const allNodes = new Set(subsetNodes);
-      allNodes.add(depotNode);
-      return solveTSP(graph, allNodes, depotNode);
+
+    //    so we can measure total distance or draw the polyline.
+    function buildFullPath(graph, route) {
+      let fullPath = [];
+      for (let i = 0; i < route.length - 1; i++) {
+        const segment = bidirectionalDijkstra(graph, route[i], route[i+1]);
+        // Avoid duplicating the junction node
+        if (i === 0) {
+          fullPath = segment;
+        } else {
+          fullPath = fullPath.concat(segment.slice(1));
+        }
+      }
+      return fullPath;
     }
 
-    //  MAIN FUNCTION: Build and visualize multi-driver routes
+
+    // Compute estimated travel time (in minutes) for a given route
+    // Assumption: travel time (min) = (distance (km) / averageSpeed * 60) + (number of stops * stopTimeMinutes)
+    // Here, number of stops is route.length - 2 (excluding starting and ending depot).
+    function estimateTravelTime(route, totalDistance) {
+      const travelTimeMinutes = (totalDistance / averageSpeed) * 60;
+      // Exclude depot stops (first and last)
+      const numberOfStops = route.length - 2;
+      const stopsTimeMinutes = numberOfStops * stopTimeMinutes;
+      return travelTimeMinutes + stopsTimeMinutes;
+    }
+
+    // MAIN FUNCTION: Build, measure, and compare routes
     async function visualizeMultiDriverRoutes() {
       const roadData = await fetchRoadData();
       if (!roadData || !roadData.elements) {
         alert("Failed to fetch Overpass data.");
         return;
       }
+
       const graph = buildWeightedGraph(roadData);
 
-      //  Mark the depot with a distinct style (large yellow circle with black border)
+      // Mark the depot on the map
       L.circleMarker([depot.lat, depot.lon], {
         radius: 10,
         color: "black",
         weight: 2,
         fillColor: "yellow",
         fillOpacity: 1
-      }).addTo(map)
-        .bindPopup("Depot: Dehiwala Mount Lavinia Municipal Council");
+      }).addTo(map).bindPopup("Depot");
 
-      //  Get graph nodes for depot and citizens
+      // Convert each citizen lat/lon to its nearest node in the graph
       const depotNode = findClosestNode(graph, depot.lat, depot.lon);
       const citizenNodes = citizenPoints.map(pt => findClosestNode(graph, pt.lat, pt.lon));
 
-      // Single TSP on all nodes (to suggest an order)
+      // A) Single-Driver TSP Route
       const allNodes = new Set(citizenNodes);
       allNodes.add(depotNode);
-      const fullTspRoute = solveTSP(graph, allNodes, depotNode);
-      console.log("Full TSP Route (Single):", fullTspRoute);
+      const singleRoute = solveTSP(graph, allNodes, depotNode);
+      const singleFullPath = buildFullPath(graph, singleRoute);
+      const singleRouteCost = getPathCost(graph, singleFullPath);
 
-      //  Remove depot (first and last) to get internal order for citizens
+      // Estimate time for single-driver route
+      const singleEstimatedTime = estimateTravelTime(singleRoute, singleRouteCost);
+
+      console.log("Single-driver route:", singleRoute);
+      console.log("Single-driver total distance:", singleRouteCost.toFixed(2), "km (approx)");
+      console.log("Single-driver estimated travel time:", singleEstimatedTime.toFixed(1), "minutes");
+
+      // B) Three-Driver Split Routes
+      // We use the same overall TSP route ordering for splitting
+      const fullTspRoute = singleRoute;
+      // Remove the depot from the beginning and end
       const internalRoute = fullTspRoute.slice(1, fullTspRoute.length - 1);
-      const totalCitizens = internalRoute.length; // e.g. 18
-
-      //  Split the internal route into 3 roughly equal subsets
+      const totalCitizens = internalRoute.length;
       const subsetSize = Math.ceil(totalCitizens / 3);
+
       const subset1 = internalRoute.slice(0, subsetSize);
       const subset2 = internalRoute.slice(subsetSize, 2 * subsetSize);
       const subset3 = internalRoute.slice(2 * subsetSize);
       const driverSubsets = [subset1, subset2, subset3];
 
-      //  For each driver's subset, compute a mini TSP route (starting/ending at depot)
+      let driverAssignments = [];
+      let driverDistances = [];
+      let driverTimes = [];
+
       driverSubsets.forEach((subset, index) => {
-        const route = solveTSPForSubset(graph, subset, depotNode);
-        console.log(`Driver ${index+1} subset route:`, route);
+        // For each subset, add depot to get a complete mini-route
+        const subsetNodes = new Set(subset);
+        subsetNodes.add(depotNode);
+        const miniRoute = solveTSP(graph, subsetNodes, depotNode);
+        const miniFullPath = buildFullPath(graph, miniRoute);
+        const miniRouteCost = getPathCost(graph, miniFullPath);
+        driverDistances.push(miniRouteCost);
 
-        // Build the road path for the route
-        let fullPath = [];
-        for (let i = 0; i < route.length - 1; i++) {
-          const segment = bidirectionalDijkstra(graph, route[i], route[i+1]);
-          fullPath = (i === 0) ? segment : fullPath.concat(segment.slice(1));
-        }
-        // Draw the polyline for this driver's route
+        // Estimate travel time for this mini-route
+        const miniEstimatedTime = estimateTravelTime(miniRoute, miniRouteCost);
+        driverTimes.push(miniEstimatedTime);
+
+        // Draw the mini-route on the map
         L.polyline(
-          fullPath.map(n => n.split(",").map(Number)),
-          { color: driverColors[index], weight: 5 }
-        )
-        .addTo(map)
-        .bindPopup(`Driver ${index+1} Route`);
+          miniFullPath.map(n => n.split(",").map(Number)),
+          { color: driverColors[index], weight: 4 }
+        ).addTo(map).bindPopup(`Driver ${index+1} Route`);
 
-        // Also, add colored markers for each stop (excluding the depot)
-        route.forEach(node => {
+        // Add colored markers (dots) at each stop (excluding depot)
+        miniRoute.forEach((node, idx) => {
+          // Skip the depot node at start and end if desired:
           if (node !== depotNode) {
             const coords = node.split(",").map(Number);
             L.circleMarker(coords, {
@@ -299,14 +343,47 @@
               fillColor: driverColors[index],
               fillOpacity: 1
             }).addTo(map)
-            .bindPopup(`Driver ${index+1} Stop`);
+            .bindPopup(`Driver ${index+1} Stop ${idx}`);
           }
         });
+
+        console.log(`Driver ${index+1} route:`, miniRoute);
+        console.log(`Driver ${index+1} distance:`, miniRouteCost.toFixed(2), "km");
+        console.log(`Driver ${index+1} estimated travel time:`, miniEstimatedTime.toFixed(1), "minutes");
+
+        // Prepare assignment object using the computed full path (miniFullPath)
+        // (Assumes that driverNumbers has at least 3 items.)
+        driverAssignments.push({
+          vehicle_no: driverNumbers[index],
+          route: miniFullPath
+        });
       });
+
+      // For multi-driver, overall total distance is the sum of all mini-route distances,
+      // while overall completion time (if running in parallel) is the maximum time among them.
+      const totalMultiDistance = driverDistances.reduce((a, b) => a + b, 0);
+      const maxMultiTime = Math.max(...driverTimes);
+
+      console.log("=== Comparison ===");
+      console.log("Single-Driver Distance:", singleRouteCost.toFixed(2), "km");
+      console.log("Single-Driver Estimated Time:", singleEstimatedTime.toFixed(1), "minutes");
+      console.log("3-Driver Total Distance:", totalMultiDistance.toFixed(2), "km");
+      console.log("3-Driver Estimated Completion Time (max of mini-routes):", maxMultiTime.toFixed(1), "minutes");
+      console.log("Note: In the 3-driver scenario, total fuel/distance is the sum, but completion time is determined by the slowest route.");
+
+      // POST the assignments to the backend to store in the database
+      fetch('/routeOptimization/api/assign-routes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignments: driverAssignments })
+      })
+      .then(response => response.json())
+      .then(data => console.log("Route assignments stored:", data))
+      .catch(err => console.error("Failed to store route assignments:", err));
     }
 
-    // RUN THE VISUALIZATION
     window.onload = visualizeMultiDriverRoutes;
+
   </script>
 </body>
 </html>
