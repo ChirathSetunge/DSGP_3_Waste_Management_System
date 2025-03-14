@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Options</title>
+    <title>Citizen Options</title>
 </head>
 <body>
     <h1>Citizen Options</h1>
     <p>Welcome, choose an option below:</p>
     <ul>
-        <li><a href="#">Waste Availability</a></li>
-        <li><a href="#">Option 2</a></li>
+        <li><a href="{{ url_for('routeOptimization.citizen_waste_availability') }}">Waste Availability</a></li>
+        <li><a href="{{ url_for('routeOptimization.citizen_map') }}">View My Map</a></li>
         <li><a href="#">Option 3</a></li>
 
     </ul>
