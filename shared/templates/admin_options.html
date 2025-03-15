@@ -4,18 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Options</title>
+    <!-- CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('shared.static', filename='/admin_auth.css') }}">
 </head>
 <body>
-    <h1>Admin Options</h1>
-    <p>Welcome, choose an option below:</p>
-    <ul>
-        <li><a href="{{ url_for('household.msw_prediction') }}">Household MSW waste prediction</a></li>
-        <li><a href="#">Household SOW waste prediction</a></li>
-        <li><a href="#">Household MSW waste data entry</a></li>
-        <li><a href="#">Household SOW waste data entry</a></li>
-        <li><a href="#">Hospital waste prediction</a></li>
-        <li><a href="{{ url_for('routeOptimization.waste_collection_map_admin') }}">Route planning</a></li>
-        <li><a href="#">View chatbot summary reports</a></li>
-    </ul>
+    <div class="container-fluid">
+        <div class="row vh-100">
+            <!-- Left Side -->
+            <div class="col-md-6 d-flex flex-column justify-content-center align-items-start p-5">
+                <h1 class="mb-3">Admin Dashboard</h1>
+                <p class="mb-4">Welcome to the admin dashboard. Choose an option below:</p>
+                <div class="list-group w-100">
+                    <a href="{{ url_for('household.msw_prediction') }}">Household MSW waste prediction</a>
+                    <a href="{{ url_for('household.sow_prediction_ui') }}">Household SOW waste prediction</a>
+                    <a href="{{ url_for('household.waste_entry') }}">Household MSW waste data entry</a>
+                    <a href="{{ url_for('household.waste_entry_sow') }}">Household SOW waste data entry</a>
+                    <a href="#">Hospital waste prediction</a></li>
+                    <a href="{{ url_for('routeOptimization.waste_collection_map_admin') }}">Route planning</a>
+                    <a href="#">View chatbot summary reports</a>
+                </div>
+            </div>
+            <!-- Right Side -->
+            <div class="col-md-6 d-none d-md-block p-0">
+                <img src="{{ url_for('shared.static', filename='images/admin_dashboard.jpg') }}" alt="Admin Options Background" class="img-fluid vh-100 w-100">
+            </div>
+        </div>
+    </div>
+    <!-- JS -->
+    <script src="{{ url_for('shared.static', filename='/admin_auth.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

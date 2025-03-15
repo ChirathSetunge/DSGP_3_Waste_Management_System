@@ -10,6 +10,9 @@ from HouseHold_Waste_Prediction_Chirath import household_bp
 model = load_model('HouseHold_Waste_Prediction_Chirath/ml_model/MSW_model.h5', compile=False)
 scaler = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/scaler.pkl')
 label_encoder = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/label_encoder.pkl')
+sow_model = load_model('HouseHold_Waste_Prediction_Chirath/ml_model/SOW_model.h5', compile=False)
+sow_scaler = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/sow_scaler.pkl')
+sow_label_encoder = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/sow_label_encoder.pkl')
 
 # Prediction Route in the Household component
 @household_bp.route('/predict', methods=['POST'])
@@ -26,7 +29,6 @@ def predict():
     Day_of_the_Week = pd.to_datetime(Dump_Date).dayofweek
     Week_Number = pd.to_datetime(Dump_Date).week
 
-    # Connect to DB
     conn = sqlite3.connect('instance/database.db')
 
     # Get the values from the AvgWeek table
@@ -64,7 +66,6 @@ def predict():
     MSW_rolling_min_30 = waste_data['MSW Wastage Amount (Kg)'].rolling(window=30, min_periods=1).min().iloc[-1]
     MSW_rolling_max_30 = waste_data['MSW Wastage Amount (Kg)'].rolling(window=30, min_periods=1).max().iloc[-1]
 
-    # Close the database connection
     conn.close()
 
     # Create data frame for prediction
@@ -166,3 +167,104 @@ def get_last_date():
 
     last_date = pd.to_datetime(df['last_date'].iloc[0])
     return jsonify({'last_date': last_date.strftime('%Y-%m-%d')})
+
+@household_bp.route('/sow-prediction', methods=['POST'])
+def sow_prediction():
+    data = request.get_json()
+    print(data)
+    Route = data['route']
+    Dump_Date = data['dump_date']
+    SOW_Collected = data['sow_collected']
+
+    # Extract date features
+    Year = pd.to_datetime(Dump_Date).year
+    Month = pd.to_datetime(Dump_Date).month
+    Day_of_the_Week = pd.to_datetime(Dump_Date).dayofweek
+    Week_Number = pd.to_datetime(Dump_Date).week
+
+    conn = sqlite3.connect('instance/database.db')
+
+    # Get the values from the AvgWeekSOW table
+    query_avgweek_sow = f"SELECT [SOW Average Weekly Waste Percentage] FROM AvgWeekSOW WHERE [Week Number] = {Week_Number}"
+    SOW_Average_Weekly_Waste_Percentage = pd.read_sql_query(query_avgweek_sow, conn).iloc[0, 0]
+
+    # Get the values from the RouteWeekSOW table
+    query_routeweek_sow = f"SELECT [sow_route_week] FROM RouteWeekSOW WHERE [Route] = '{Route}' AND [Week Number] = {Week_Number}"
+    sow_route_week = pd.read_sql_query(query_routeweek_sow, conn).iloc[0, 0]
+
+    # Read the data from the WasteDataSPW table
+    query_wastedata_sow = f"SELECT * FROM WasteDataSOW WHERE [Route] = '{Route}' ORDER BY [Dump Date] DESC"
+    waste_data_sow = pd.read_sql_query(query_wastedata_sow, conn)
+
+    # Convert the 'Dump Date' column to datetime
+    waste_data_sow['Dump Date'] = pd.to_datetime(waste_data_sow['Dump Date'])
+    # Filter for the route and sort by Dump Date
+    waste_data_sow = waste_data_sow[waste_data_sow['Route'] == Route].sort_values(by='Dump Date', ascending=True)
+
+    # Apply shift safely
+    SOW_lag_1 = waste_data_sow['SOW Wastage Amount (Kg)'].iloc[-1] if not waste_data_sow.empty else np.nan
+    SOW_lag_7 = waste_data_sow['SOW Wastage Amount (Kg)'].iloc[-7] if len(waste_data_sow) >= 7 else np.nan
+
+    # Calculate rolling features
+    SOW_rolling_mean_7 = waste_data_sow['SOW Wastage Amount (Kg)'].rolling(window=7, min_periods=1).mean().iloc[-1]
+    SOW_rolling_min_7 = waste_data_sow['SOW Wastage Amount (Kg)'].rolling(window=7, min_periods=1).min().iloc[-1]
+    SOW_rolling_max_7 = waste_data_sow['SOW Wastage Amount (Kg)'].rolling(window=7, min_periods=1).max().iloc[-1]
+
+    SOW_rolling_mean_14 = waste_data_sow['SOW Wastage Amount (Kg)'].rolling(window=14, min_periods=1).mean().iloc[-1]
+    SOW_rolling_min_14 = waste_data_sow['SOW Wastage Amount (Kg)'].rolling(window=14, min_periods=1).min().iloc[-1]
+    SOW_rolling_max_14 = waste_data_sow['SOW Wastage Amount (Kg)'].rolling(window=14, min_periods=1).max().iloc[-1]
+
+    SOW_rolling_mean_30 = waste_data_sow['SOW Wastage Amount (Kg)'].rolling(window=30, min_periods=1).mean().iloc[-1]
+    SOW_rolling_min_30 = waste_data_sow['SOW Wastage Amount (Kg)'].rolling(window=30, min_periods=1).min().iloc[-1]
+    SOW_rolling_max_30 = waste_data_sow['SOW Wastage Amount (Kg)'].rolling(window=30, min_periods=1).max().iloc[-1]
+
+    conn.close()
+
+    # Create data frame for prediction
+    new_data = pd.DataFrame([{
+        'Route': Route,
+        'Year': Year,
+        'Month': Month,
+        'Day of the Week': Day_of_the_Week,
+        'Week Number': Week_Number,
+        'SOW_Collected': SOW_Collected,
+        'SOW Average Weekly Waste Percentage': SOW_Average_Weekly_Waste_Percentage,
+        'sow_route_week': sow_route_week,
+        'SOW_Lag_1': SOW_lag_1,
+        'SOW_Lag_7': SOW_lag_7,
+        'SOW_rolling_mean_7': SOW_rolling_mean_7,
+        'SOW_rolling_min_7': SOW_rolling_min_7,
+        'SOW_rolling_max_7': SOW_rolling_max_7,
+        'SOW_rolling_mean_14': SOW_rolling_mean_14,
+        'SOW_rolling_min_14': SOW_rolling_min_14,
+        'SOW_rolling_max_14': SOW_rolling_max_14,
+        'SOW_rolling_mean_30': SOW_rolling_mean_30,
+        'SOW_rolling_min_30': SOW_rolling_min_30,
+        'SOW_rolling_max_30': SOW_rolling_max_30
+    }])
+
+    # Preprocess the new data
+    new_data['Route'] = sow_label_encoder.transform(new_data['Route'])
+    new_data['Month_sin'] = np.sin(2 * np.pi * new_data['Month'] / 12)
+    new_data['Month_cos'] = np.cos(2 * np.pi * new_data['Month'] / 12)
+    new_data['Day_of_Week_sin'] = np.sin(2 * np.pi * new_data['Day of the Week'] / 7)
+    new_data['Day_of_Week_cos'] = np.cos(2 * np.pi * new_data['Day of the Week'] / 7)
+    new_data['Week_Number_sin'] = np.sin(2 * np.pi * new_data['Week Number'] / 52)
+    new_data['Week_Number_cos'] = np.cos(2 * np.pi * new_data['Week Number'] / 52)
+    X_new = new_data.drop(columns=['Month', 'Day of the Week', 'Week Number'])
+    X_new_route = X_new['Route'].values
+    X_new_other = sow_scaler.transform(X_new.drop(columns=['Route']).values)
+
+    # Make prediction
+    predictions = sow_model.predict([X_new_route, X_new_other]).flatten()
+    print(predictions)
+
+    return jsonify({'prediction': round(float(predictions[0]), 2)})
+
+@household_bp.route('/sow-prediction_ui')
+def sow_prediction_ui():
+    return render_template('sow_predict.html')
+
+@household_bp.route('/waste-entry-sow')
+def waste_entry_sow():
+    return render_template('waste_entry_sow.html')
