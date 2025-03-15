@@ -260,3 +260,11 @@ def sow_prediction():
     print(predictions)
 
     return jsonify({'prediction': round(float(predictions[0]), 2)})
+
+@household_bp.route('/sow-prediction_ui')
+def sow_prediction_ui():
+    return render_template('sow_predict.html')
+
+@household_bp.route('/waste-entry-sow')
+def waste_entry_sow():
+    return render_template('waste_entry_sow.html')
