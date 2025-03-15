@@ -10,6 +10,9 @@ from HouseHold_Waste_Prediction_Chirath import household_bp
 model = load_model('HouseHold_Waste_Prediction_Chirath/ml_model/MSW_model.h5', compile=False)
 scaler = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/scaler.pkl')
 label_encoder = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/label_encoder.pkl')
+sow_model = load_model('HouseHold_Waste_Prediction_Chirath/ml_model/SOW_model.h5', compile=False)
+sow_scaler = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/sow_scaler.pkl')
+sow_label_encoder = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/sow_label_encoder.pkl')
 
 # Prediction Route in the Household component
 @household_bp.route('/predict', methods=['POST'])
@@ -26,7 +29,6 @@ def predict():
     Day_of_the_Week = pd.to_datetime(Dump_Date).dayofweek
     Week_Number = pd.to_datetime(Dump_Date).week
 
-    # Connect to DB
     conn = sqlite3.connect('instance/database.db')
 
     # Get the values from the AvgWeek table
@@ -64,7 +66,6 @@ def predict():
     MSW_rolling_min_30 = waste_data['MSW Wastage Amount (Kg)'].rolling(window=30, min_periods=1).min().iloc[-1]
     MSW_rolling_max_30 = waste_data['MSW Wastage Amount (Kg)'].rolling(window=30, min_periods=1).max().iloc[-1]
 
-    # Close the database connection
     conn.close()
 
     # Create data frame for prediction
