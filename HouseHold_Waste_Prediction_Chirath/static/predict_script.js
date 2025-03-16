@@ -89,7 +89,7 @@ document.getElementById('predictBtn').addEventListener('click', () => {
   .then(response => response.json())
   .then(data => {
     document.getElementById('predictionResult').innerText = `Predicted MSW: ${data.prediction} Kg`;
-    // Clear the selectedRoutes stack so a new selection can be made
+    // Clear the selectedRoutes
     selectedRoutes = [];
   })
   .catch(error => {
