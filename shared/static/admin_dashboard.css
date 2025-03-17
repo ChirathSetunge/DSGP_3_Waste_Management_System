@@ -1,0 +1,11 @@
+.btn-adm {
+  background-color: #0B437E;
+  color: #fff;
+  border: none;
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+  text-decoration: none;
+  display: inline-block;
+}
