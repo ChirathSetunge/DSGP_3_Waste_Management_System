@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Map</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Include Leaflet and Turf JS libraries -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
+
+  <script>
+    // MAP SETUP
+    const map = L.map("map").setView([6.8613, 79.8643], 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© OpenStreetMap contributors",
+    }).addTo(map);
+
+    // Depot (Municipal Council) fixed at these coordinates
+    const depot = { lat: 6.8613, lon: 79.8643 };
+
+    // Citizen data from Flask (Python list -> JSON)
+    const citizenPoints = {{ citizen_points|tojson }};
+    console.log("Citizen Points from DB:", citizenPoints);
+
+    // Pass the list of registered driver vehicle numbers from the backend
+    const driverNumbers = {{ driver_numbers|tojson }};
+    console.log("Driver Numbers:", driverNumbers);
+
+    // Colors for each driver's route
+    const driverColors = ["red", "blue", "green"];
+
+    //  OVERPASS CONFIG + WEIGHTS
+    const OVERPASS_API_URL =
+      "https://overpass-api.de/api/interpreter?data=[out:json];way[highway](6.80,79.84,6.87,79.89);out geom;";
+    const roadTypeWeights = {
+      motorway: 1,
+      primary: 1.2,
+      secondary: 1.5,
+      tertiary: 1.8,
+      residential: 2,
+      service: 2.5,
+      path: 4,
+    };
+    const roadsWithGarbage = new Set([]); // If needed
+
+    // Average speed (km/h) and stop time (minutes) per stop (citizen pickup)
+    const averageSpeed = 25; // km/h
+    const stopTimeMinutes = 2; // minutes per stop
+
+    //  FETCH ROAD DATA
+    async function fetchRoadData() {
+      try {
+        const response = await fetch(OVERPASS_API_URL);
+        if (!response.ok) throw new Error(`Error fetching road data: ${response.statusText}`);
+        return await response.json();
+      } catch (error) {
+        console.error("Road data fetch failed:", error);
+        return null;
+      }
+    }
+
+    //  BUILD WEIGHTED GRAPH
+    function buildWeightedGraph(roadData) {
+      const graph = {};
+      roadData.elements.forEach((way) => {
+        if (way.type === "way" && way.geometry) {
+          const roadType = way.tags.highway || "unknown";
+          let baseWeight = roadTypeWeights[roadType] || 2;
+          const coords = way.geometry;
+          for (let i = 0; i < coords.length - 1; i++) {
+            const start = coords[i];
+            const end = coords[i + 1];
+            const distanceKm = turf.distance([start.lon, start.lat], [end.lon, end.lat], { units: "kilometers" });
+            let weightFactor = baseWeight;
+            const startNode = `${start.lat},${start.lon}`;
+            const endNode = `${end.lat},${end.lon}`;
+            if (roadsWithGarbage.has(startNode) || roadsWithGarbage.has(endNode)) {
+              weightFactor *= 0.5;
+            }
+            const weightedDistance = distanceKm * weightFactor;
+            if (!graph[startNode]) graph[startNode] = {};
+            if (!graph[endNode]) graph[endNode] = {};
+            graph[startNode][endNode] = weightedDistance;
+            graph[endNode][startNode] = weightedDistance;
+          }
+        }
+      });
+      return graph;
+    }
+
+    //  FIND NEAREST GRAPH NODE
+    function findClosestNode(graph, lat, lon) {
+      let closestNode = null;
+      let smallestDistance = Infinity;
+      for (const node in graph) {
+        const [nodeLat, nodeLon] = node.split(",").map(Number);
+        const dist = turf.distance([lon, lat], [nodeLon, nodeLat], { units: "kilometers" });
+        if (dist < smallestDistance) {
+          smallestDistance = dist;
+          closestNode = node;
+        }
+      }
+      return closestNode;
+    }
+
+    //  BIDIRECTIONAL DIJKSTRA
+    function bidirectionalDijkstra(graph, start, end) {
+      if (!graph[start] || !graph[end]) {
+        console.error(`Start or End node missing in graph: ${start}, ${end}`);
+        return [];
+      }
+      const forwardDistances = { [start]: 0 };
+      const backwardDistances = { [end]: 0 };
+      const forwardPrev = {};
+      const backwardPrev = {};
+      const forwardQueue = [start];
+      const backwardQueue = [end];
+      const visitedForward = new Set();
+      const visitedBackward = new Set();
+      let mu = Infinity;
+      let meetingNode = null;
+
+      while (forwardQueue.length && backwardQueue.length) {
+        // Forward step
+        let u = forwardQueue.reduce((a, b) => forwardDistances[a] < forwardDistances[b] ? a : b);
+        forwardQueue.splice(forwardQueue.indexOf(u), 1);
+        visitedForward.add(u);
+        for (const neighbor in graph[u]) {
+          if (!visitedForward.has(neighbor)) {
+            const newDist = forwardDistances[u] + graph[u][neighbor];
+            if (newDist < (forwardDistances[neighbor] || Infinity)) {
+              forwardDistances[neighbor] = newDist;
+              forwardPrev[neighbor] = u;
+              forwardQueue.push(neighbor);
+            }
+            if (visitedBackward.has(neighbor)) {
+              const total = forwardDistances[neighbor] + backwardDistances[neighbor];
+              if (total < mu) {
+                mu = total;
+                meetingNode = neighbor;
+              }
+            }
+          }
+        }
+        // Backward step
+        let v = backwardQueue.reduce((a, b) => backwardDistances[a] < backwardDistances[b] ? a : b);
+        backwardQueue.splice(backwardQueue.indexOf(v), 1);
+        visitedBackward.add(v);
+        for (const neighbor in graph[v]) {
+          if (!visitedBackward.has(neighbor)) {
+            const newDist = backwardDistances[v] + graph[v][neighbor];
+            if (newDist < (backwardDistances[neighbor] || Infinity)) {
+              backwardDistances[neighbor] = newDist;
+              backwardPrev[neighbor] = v;
+              backwardQueue.push(neighbor);
+            }
+            if (visitedForward.has(neighbor)) {
+              const total = forwardDistances[neighbor] + backwardDistances[neighbor];
+              if (total < mu) {
+                mu = total;
+                meetingNode = neighbor;
+              }
+            }
+          }
+        }
+        if (forwardDistances[u] + backwardDistances[v] >= mu) break;
+      }
+      // Reconstruct path
+      const pathForward = [];
+      let current = meetingNode;
+      while (current) {
+        pathForward.unshift(current);
+        current = forwardPrev[current];
+      }
+      const pathBackward = [];
+      current = backwardPrev[meetingNode];
+      while (current) {
+        pathBackward.push(current);
+        current = backwardPrev[current];
+      }
+      return pathForward.concat(pathBackward);
+    }
+
+    // PATH COST
+    function getPathCost(graph, path) {
+      let cost = 0;
+      for (let i = 0; i < path.length - 1; i++) {
+        const a = path[i], b = path[i+1];
+        if (graph[a] && graph[a][b]) {
+          cost += graph[a][b];
+        }
+      }
+      return cost;
+    }
+
+    //  SIMPLE NEAREST NEIGHBOR TSP (Single Route)
+    function solveTSP(graph, nodes, startNode) {
+      const unvisited = new Set(nodes);
+      unvisited.delete(startNode);
+      const route = [startNode];
+      let current = startNode;
+      while (unvisited.size > 0) {
+        let bestNeighbor = null;
+        let bestCost = Infinity;
+        unvisited.forEach(neighbor => {
+          const segment = bidirectionalDijkstra(graph, current, neighbor);
+          const cost = getPathCost(graph, segment);
+          if (cost < bestCost) {
+            bestCost = cost;
+            bestNeighbor = neighbor;
+          }
+        });
+        route.push(bestNeighbor);
+        unvisited.delete(bestNeighbor);
+        current = bestNeighbor;
+      }
+      route.push(startNode); // Return to depot
+      return route;
+    }
+
+
+    //    so we can measure total distance or draw the polyline.
+    function buildFullPath(graph, route) {
+      let fullPath = [];
+      for (let i = 0; i < route.length - 1; i++) {
+        const segment = bidirectionalDijkstra(graph, route[i], route[i+1]);
+        // Avoid duplicating the junction node
+        if (i === 0) {
+          fullPath = segment;
+        } else {
+          fullPath = fullPath.concat(segment.slice(1));
+        }
+      }
+      return fullPath;
+    }
+
+
+    // Compute estimated travel time (in minutes) for a given route
+    // Assumption: travel time (min) = (distance (km) / averageSpeed * 60) + (number of stops * stopTimeMinutes)
+    // Here, number of stops is route.length - 2 (excluding starting and ending depot).
+    function estimateTravelTime(route, totalDistance) {
+      const travelTimeMinutes = (totalDistance / averageSpeed) * 60;
+      // Exclude depot stops (first and last)
+      const numberOfStops = route.length - 2;
+      const stopsTimeMinutes = numberOfStops * stopTimeMinutes;
+      return travelTimeMinutes + stopsTimeMinutes;
+    }
+
+    // MAIN FUNCTION: Build, measure, and compare routes
+    async function visualizeMultiDriverRoutes() {
+      const roadData = await fetchRoadData();
+      if (!roadData || !roadData.elements) {
+        alert("Failed to fetch Overpass data.");
+        return;
+      }
+
+      const graph = buildWeightedGraph(roadData);
+
+      // Mark the depot on the map
+      L.circleMarker([depot.lat, depot.lon], {
+        radius: 10,
+        color: "black",
+        weight: 2,
+        fillColor: "yellow",
+        fillOpacity: 1
+      }).addTo(map).bindPopup("Depot");
+
+      // Convert each citizen lat/lon to its nearest node in the graph
+      const depotNode = findClosestNode(graph, depot.lat, depot.lon);
+      const citizenNodes = citizenPoints.map(pt => findClosestNode(graph, pt.lat, pt.lon));
+
+      // A) Single-Driver TSP Route
+      const allNodes = new Set(citizenNodes);
+      allNodes.add(depotNode);
+      const singleRoute = solveTSP(graph, allNodes, depotNode);
+      const singleFullPath = buildFullPath(graph, singleRoute);
+      const singleRouteCost = getPathCost(graph, singleFullPath);
+
+      // Estimate time for single-driver route
+      const singleEstimatedTime = estimateTravelTime(singleRoute, singleRouteCost);
+
+      console.log("Single-driver route:", singleRoute);
+      console.log("Single-driver total distance:", singleRouteCost.toFixed(2), "km (approx)");
+      console.log("Single-driver estimated travel time:", singleEstimatedTime.toFixed(1), "minutes");
+
+      // B) Three-Driver Split Routes
+      // We use the same overall TSP route ordering for splitting
+      const fullTspRoute = singleRoute;
+      // Remove the depot from the beginning and end
+      const internalRoute = fullTspRoute.slice(1, fullTspRoute.length - 1);
+      const totalCitizens = internalRoute.length;
+      const subsetSize = Math.ceil(totalCitizens / 3);
+
+      const subset1 = internalRoute.slice(0, subsetSize);
+      const subset2 = internalRoute.slice(subsetSize, 2 * subsetSize);
+      const subset3 = internalRoute.slice(2 * subsetSize);
+      const driverSubsets = [subset1, subset2, subset3];
+
+      let driverAssignments = [];
+      let driverDistances = [];
+      let driverTimes = [];
+
+      driverSubsets.forEach((subset, index) => {
+        // For each subset, add depot to get a complete mini-route
+        const subsetNodes = new Set(subset);
+        subsetNodes.add(depotNode);
+        const miniRoute = solveTSP(graph, subsetNodes, depotNode);
+        const miniFullPath = buildFullPath(graph, miniRoute);
+        const miniRouteCost = getPathCost(graph, miniFullPath);
+        driverDistances.push(miniRouteCost);
+
+        // Estimate travel time for this mini-route
+        const miniEstimatedTime = estimateTravelTime(miniRoute, miniRouteCost);
+        driverTimes.push(miniEstimatedTime);
+
+        // Draw the mini-route on the map
+        L.polyline(
+          miniFullPath.map(n => n.split(",").map(Number)),
+          { color: driverColors[index], weight: 4 }
+        ).addTo(map).bindPopup(`Driver ${index+1} Route`);
+
+        // Add colored markers (dots) at each stop (excluding depot)
+        miniRoute.forEach((node, idx) => {
+          // Skip the depot node at start and end if desired:
+          if (node !== depotNode) {
+            const coords = node.split(",").map(Number);
+            L.circleMarker(coords, {
+              radius: 6,
+              color: driverColors[index],
+              fillColor: driverColors[index],
+              fillOpacity: 1
+            }).addTo(map)
+            .bindPopup(`Driver ${index+1} Stop ${idx}`);
+          }
+        });
+
+        console.log(`Driver ${index+1} route:`, miniRoute);
+        console.log(`Driver ${index+1} distance:`, miniRouteCost.toFixed(2), "km");
+        console.log(`Driver ${index+1} estimated travel time:`, miniEstimatedTime.toFixed(1), "minutes");
+
+        // Prepare assignment object using the computed full path (miniFullPath)
+        // (Assumes that driverNumbers has at least 3 items.)
+        driverAssignments.push({
+          vehicle_no: driverNumbers[index],
+          route: miniFullPath
+        });
+      });
+
+      // For multi-driver, overall total distance is the sum of all mini-route distances,
+      // while overall completion time (if running in parallel) is the maximum time among them.
+      const totalMultiDistance = driverDistances.reduce((a, b) => a + b, 0);
+      const maxMultiTime = Math.max(...driverTimes);
+
+      console.log("=== Comparison ===");
+      console.log("Single-Driver Distance:", singleRouteCost.toFixed(2), "km");
+      console.log("Single-Driver Estimated Time:", singleEstimatedTime.toFixed(1), "minutes");
+      console.log("3-Driver Total Distance:", totalMultiDistance.toFixed(2), "km");
+      console.log("3-Driver Estimated Completion Time (max of mini-routes):", maxMultiTime.toFixed(1), "minutes");
+      console.log("Note: In the 3-driver scenario, total fuel/distance is the sum, but completion time is determined by the slowest route.");
+
+      // POST the assignments to the backend to store in the database
+      fetch('/routeOptimization/api/assign-routes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignments: driverAssignments })
+      })
+      .then(response => response.json())
+      .then(data => console.log("Route assignments stored:", data))
+      .catch(err => console.error("Failed to store route assignments:", err));
+    }
+
+    window.onload = visualizeMultiDriverRoutes;
+
+  </script>
+</body>
+</html>

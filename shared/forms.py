@@ -29,3 +29,9 @@ class DriverSignupForm(FlaskForm):
         DataRequired(), EqualTo('password', message='Passwords must match.')
     ])
     submit = SubmitField('Sign Up')
+
+# Citizen Forms
+class CitizenLoginForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired(), Length(min=4, max=20)])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('Login')
