@@ -104,3 +104,32 @@ def citizen_login():
 @shared_bp.route('/citizen/options')
 def citizen_options():
     return render_template('citizen_options.html')
+
+@shared_bp.route('/citizen/signup', methods=['GET', 'POST'])
+def citizen_signup():
+    from .forms import CitizenSignupForm
+    form = CitizenSignupForm()
+    if form.validate_on_submit():
+        # Check if the username already exists
+        existing_citizen = Citizen.query.filter_by(username=form.username.data).first()
+        if existing_citizen:
+            flash('Username already exists.', 'danger')
+            return render_template('citizen_signup.html', form=form)
+
+        # Create the new citizen
+        new_citizen = Citizen(
+            name=form.name.data,
+            username=form.username.data,
+            nic=form.nic.data,
+            phone=form.phone.data,
+            latitude=float(form.latitude.data),
+            longitude=float(form.longitude.data)
+        )
+        new_citizen.set_password(form.password.data)
+        db.session.add(new_citizen)
+        db.session.commit()
+
+        flash('Citizen Sign Up Successful!', 'success')
+        return redirect(url_for('shared.citizen_login'))
+
+    return render_template('citizen_signup.html', form=form)
