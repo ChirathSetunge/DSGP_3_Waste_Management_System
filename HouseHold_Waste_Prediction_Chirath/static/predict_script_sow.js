@@ -102,7 +102,7 @@ document.getElementById('predictBtn').addEventListener('click', () => {
 
 document.getElementById('visualizeBtn').addEventListener('click', () => {
   sessionStorage.setItem('predictions', JSON.stringify(predictionsDict));
-  window.location.href = '/household/visualize_sow';
+  window.location.href = '/household/visualize-sow';
 });
 
 window.addEventListener('beforeunload', () => {
