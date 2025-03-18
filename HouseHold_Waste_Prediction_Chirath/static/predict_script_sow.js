@@ -12,15 +12,15 @@ let selectedRoutes = [];
 const routeButtonsDiv = document.getElementById('routeButtons');
 const buttonMap = {};
 
-
 function addDays(dateStr, days) {
   const date = new Date(dateStr);
   date.setDate(date.getDate() + days);
   return date.toISOString().split('T')[0];
 }
 
+// Update date range based on selected route
 function updateDateRangeForRoute(route) {
-  fetch(`/household/get-last-date?route=${encodeURIComponent(route)}`)
+  fetch(`/household/get-last-date-sow?route=${encodeURIComponent(route)}`)
     .then(response => response.json())
     .then(data => {
       const dumpDateInput = document.getElementById('dumpDate');
@@ -48,7 +48,7 @@ routes.forEach(route => {
 
   btn.onclick = () => {
     if (!selectedRoutes.includes(route)) {
-      selectedRoutes.push(route);  // Add route to stack
+      selectedRoutes.push(route);  // Add route to the selection list
       btn.classList.add('btn-success', 'text-white');  // Mark button as active (green)
       // Update date input range based on the selected route
       updateDateRangeForRoute(route);
@@ -64,7 +64,7 @@ routes.forEach(route => {
 // Predict button event handler
 document.getElementById('predictBtn').addEventListener('click', () => {
   const dumpDate = document.getElementById('dumpDate').value;
-  const mswCollected = document.getElementById('mswCollected').value;
+  const sowCollected = document.getElementById('sowCollected').value;
 
   if (selectedRoutes.length === 0) {
     alert('Please select a route first.');
@@ -77,18 +77,18 @@ document.getElementById('predictBtn').addEventListener('click', () => {
   // Use the last selected route for prediction
   const latestRoute = selectedRoutes[selectedRoutes.length - 1];
 
-  fetch('/household/predict', {
+  fetch('/household/sow-prediction', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       route: latestRoute,
       dump_date: dumpDate,
-      msw_collected: mswCollected
+      sow_collected: sowCollected
     })
   })
   .then(response => response.json())
   .then(data => {
-    document.getElementById('predictionResult').innerText = `Predicted MSW: ${data.prediction} Kg`;
+    document.getElementById('predictionResult').innerText = `Predicted SOW: ${data.prediction} Kg`;
     // Clear the selectedRoutes
     selectedRoutes = [];
   })
