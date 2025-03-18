@@ -280,3 +280,29 @@ def sow_prediction_ui():
 @household_bp.route('/waste-entry-sow')
 def waste_entry_sow():
     return render_template('waste_entry_sow.html')
+
+@household_bp.route('/waste-entry-sow/submit', methods=['POST'])
+def submit_waste_sow():
+    try:
+        data = request.get_json()
+        dump_date = data.get("dump_date")
+        waste_records = data.get("waste_records", {})
+
+        if not dump_date or not waste_records:
+            return jsonify({"error": "Invalid data"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        for route, msw_amount in waste_records.items():
+            if msw_amount.strip():
+                cursor.execute(
+                    "INSERT INTO WasteDataSOW ([Dump Date], [Route], [SOW Wastage Amount (Kg)]) VALUES (?, ?, ?)",
+                    (dump_date, route, msw_amount)
+                )
+
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "Data inserted successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
