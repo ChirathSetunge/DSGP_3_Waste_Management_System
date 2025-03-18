@@ -20,3 +20,22 @@ document.addEventListener("DOMContentLoaded", function () {
             precipitation_sum: precipitation,
             daily_patients: dailyPatients
         };
+        fetch("/hospital/predict", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                predictionResult.innerHTML = `<span class='text-danger'>Error: ${data.error}</span>`;
+            } else {
+                predictionResult.innerHTML = `<strong>Predicted Waste Weight:</strong> ${data.predicted_waste_weight.toFixed(2)} kg`;
+            }
+        })
+        .catch(error => {
+            predictionResult.innerHTML = "<span class='text-danger'>An error occurred. Please try again.</span>";
+            console.error("Error:", error);
+        });
+    });
+});
