@@ -47,3 +47,5 @@ def predict_waste():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 @hospital_bp.route('/hospital_prediction')
+def hospital_prediction():
+    return render_template('hospital_predict.html')
