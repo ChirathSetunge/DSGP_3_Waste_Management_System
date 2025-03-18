@@ -310,3 +310,6 @@ def submit_waste_sow():
 @household_bp.route('/visualize')
 def visualize():
     return render_template('msw_visualize.html')
+@household_bp.route('/visualize-sow')
+def visualize_sow():
+    return render_template('sow_visualize.html')
