@@ -11,6 +11,7 @@ const routes = [
 let selectedRoutes = [];
 const routeButtonsDiv = document.getElementById('routeButtons');
 const buttonMap = {};
+let predictionsDict = {}
 
 function addDays(dateStr, days) {
   const date = new Date(dateStr);
@@ -90,10 +91,23 @@ document.getElementById('predictBtn').addEventListener('click', () => {
   .then(data => {
     document.getElementById('predictionResult').innerText = `Predicted SOW: ${data.prediction} Kg`;
     // Clear the selectedRoutes
+    predictionsDict[latestRoute] = data.prediction;
     selectedRoutes = [];
   })
   .catch(error => {
     console.error('Error:', error);
     document.getElementById('predictionResult').innerText = 'Error fetching prediction.';
+  });
+});
+
+document.getElementById('visualizeBtn').addEventListener('click', () => {
+  sessionStorage.setItem('predictions', JSON.stringify(predictionsDict));
+  window.location.href = '/household/visualize_sow';
+});
+
+window.addEventListener('beforeunload', () => {
+  selectedRoutes = [];
+  Object.values(buttonMap).forEach(btn => {
+    btn.classList.remove('btn-success', 'text-white');
   });
 });
