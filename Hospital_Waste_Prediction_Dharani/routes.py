@@ -33,3 +33,4 @@ def preprocess_input(data):
         return [[data['Day of the week'], data['Month'], data['Day'], data['cat_rain'], data['daily_patients']]]
     except Exception as e:
         return str(e)
+@hospital_bp.route('/predict', methods=['POST'])
