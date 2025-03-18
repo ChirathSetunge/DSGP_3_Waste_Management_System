@@ -294,11 +294,11 @@ def submit_waste_sow():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        for route, msw_amount in waste_records.items():
-            if msw_amount.strip():
+        for route, sow_amount in waste_records.items():
+            if sow_amount.strip():
                 cursor.execute(
                     "INSERT INTO WasteDataSOW ([Dump Date], [Route], [SOW Wastage Amount (Kg)]) VALUES (?, ?, ?)",
-                    (dump_date, route, msw_amount)
+                    (dump_date, route, sow_amount)
                 )
 
         conn.commit()
@@ -306,3 +306,7 @@ def submit_waste_sow():
         return jsonify({"message": "Data inserted successfully"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@household_bp.route('/visualize')
+def visualize():
+    return render_template('msw_visualize.html')
