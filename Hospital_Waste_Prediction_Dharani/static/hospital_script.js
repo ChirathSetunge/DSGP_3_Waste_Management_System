@@ -13,9 +13,9 @@ document.addEventListener("DOMContentLoaded", function () {
             predictionResult.innerHTML = "<span class='text-danger'>Please enter valid inputs.</span>";
             return;
         }
-    }
 
-    const requestData = {
+
+        const requestData = {
             date: date,
             precipitation_sum: precipitation,
             daily_patients: dailyPatients
