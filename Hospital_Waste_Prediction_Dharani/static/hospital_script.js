@@ -14,3 +14,9 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
     }
+
+    const requestData = {
+            date: date,
+            precipitation_sum: precipitation,
+            daily_patients: dailyPatients
+        };
