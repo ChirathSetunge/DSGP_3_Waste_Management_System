@@ -34,3 +34,15 @@ def preprocess_input(data):
     except Exception as e:
         return str(e)
 @hospital_bp.route('/predict', methods=['POST'])
+def predict_waste():
+
+    data = request.get_json()
+    try:
+        processed_data = preprocess_input(data)
+        if isinstance(processed_data, str):
+            return jsonify({"error": processed_data}), 400
+
+        prediction = float(model.predict(processed_data)[0])
+        return jsonify({'predicted_waste_weight': prediction})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
