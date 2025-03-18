@@ -46,3 +46,4 @@ def predict_waste():
         return jsonify({'predicted_waste_weight': prediction})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+@hospital_bp.route('/hospital_prediction')
