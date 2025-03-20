@@ -12,10 +12,10 @@ from shared.forms import CitizenLoginForm
 @route_optimization_bp.route('/waste-collection-map-admin')
 def waste_collection_map_admin():
     now = datetime.utcnow()
-    fourteen_hours_ago = now - timedelta(hours=14)
-    threshold_str = fourteen_hours_ago.strftime("%Y-%m-%d %H:%M:%S")
-    waste_entries = WasteAvailability.query.filter(WasteAvailability.date >= threshold_str).all()
-
+    fourteen_hours_ago = datetime.utcnow() - timedelta(hours=14)
+    waste_entries = WasteAvailability.query.filter(
+        WasteAvailability.date >= fourteen_hours_ago
+    ).all()
     citizen_points = [{
         "lat": w.latitude,
         "lon": w.longitude,
@@ -171,7 +171,7 @@ def citizen_waste_availability():
                             username=citizen.username,
                             latitude=citizen.latitude,
                             longitude=citizen.longitude,
-                            date=now_utc.strftime("%Y-%m-%d %H:%M:%S")  # stored in UTC
+                            date=datetime.utcnow()  # store as a proper DateTime
                         )
                         db.session.add(new_entry)
                         db.session.commit()
