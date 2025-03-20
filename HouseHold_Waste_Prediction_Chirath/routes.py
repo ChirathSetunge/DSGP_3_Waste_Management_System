@@ -2,17 +2,17 @@ from flask import render_template, request, jsonify
 import numpy as np
 import pandas as pd
 import sqlite3
-from tensorflow.keras.models import load_model
+from keras.models import load_model
 import joblib
 from HouseHold_Waste_Prediction_Chirath import household_bp
 
 # Load model, scaler, and label encoder
-model = load_model('HouseHold_Waste_Prediction_Chirath/ml_model/MSW_model.h5', compile=False)
-scaler = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/scaler.pkl')
-label_encoder = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/label_encoder.pkl')
-sow_model = load_model('HouseHold_Waste_Prediction_Chirath/ml_model/SOW_model.h5', compile=False)
-sow_scaler = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/sow_scaler.pkl')
-sow_label_encoder = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/sow_label_encoder.pkl')
+model = load_model('HouseHold_Waste_Prediction_Chirath/ml_model/MSW_model2.keras', compile=False)
+scaler = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/scaler2.pkl')
+label_encoder = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/label_encoder2.pkl')
+sow_model = load_model('HouseHold_Waste_Prediction_Chirath/ml_model/SOW_model2.keras', compile=False)
+sow_scaler = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/sow_scaler2.pkl')
+sow_label_encoder = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/sow_label_encoder2.pkl')
 
 # Prediction Route in the Household component
 @household_bp.route('/predict', methods=['POST'])
