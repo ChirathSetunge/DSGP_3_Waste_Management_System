@@ -148,8 +148,6 @@ def citizen_waste_availability():
                           .order_by(WasteAvailability.id.desc())
                           .first())
 
-            # 2) Check session entry ("I Don't Have Waste")
-            session_submitted_time = session['waste_submitted'].get(username)
 
             already_submitted = False
 
@@ -158,16 +156,6 @@ def citizen_waste_availability():
                     last_time_utc = datetime.strptime(last_entry.date, "%Y-%m-%d %H:%M:%S")
                     last_time_ist = last_time_utc.replace(tzinfo=pytz.utc).astimezone(tz_ist)
                     if last_time_ist >= window_start_ist:
-                        already_submitted = True
-                except ValueError:
-                    pass
-
-            if session_submitted_time:
-                try:
-                    # Parse the session time (stored as IST string) and localize it to IST
-                    naive_ist = datetime.strptime(session_submitted_time, "%Y-%m-%d %H:%M:%S")
-                    session_time_ist = tz_ist.localize(naive_ist)
-                    if session_time_ist >= window_start_ist:
                         already_submitted = True
                 except ValueError:
                     pass
