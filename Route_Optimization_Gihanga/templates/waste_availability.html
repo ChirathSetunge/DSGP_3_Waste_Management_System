@@ -2,33 +2,78 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Waste Availability</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/waste_availability.css') }}">
+
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600&display=swap">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('routeOptimization.static', filename='waste_availability.css') }}">
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Waste Availability</h1>
-            <p><b>Date:</b> {{ waste_date }}</p>
-            <p><b>Waste Type:</b> {{ waste_type }}</p>
-            <!-- Display the note about time window -->
-            <p style="color: red;">{{ note }}</p>
-        </div>
 
-        <form method="POST">
-            <button type="submit" name="has_waste" value="true" class="button">I Have Waste 😊</button>
-            <button type="submit" name="has_waste" value="false" class="button secondary">I Don’t Have Waste 😞</button>
-        </form>
-
-        <div class="image">
-            <img src="{{ url_for('static', filename='images/waste_collection.png') }}" alt="Waste Collection">
-        </div>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #0B437E;">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="#">CleanUP</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link active" aria-current="page" href="#">Home</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">About</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">Contact</a>
+          </li>
+        </ul>
+        <span class="navbar-text fw-semibold">
+          Waste Availability
+        </span>
+      </div>
     </div>
+  </nav>
+
+    <div class="hero-section position-relative text-center">
+    <div class="circles-bg"></div>
+
+    <div class="hero-content container py-4 position-relative">
+      <h1 class="fw-bold hero-title mb-3">Waste Availability</h1>
+
+      <p class="mb-1"><strong>Date:</strong> {{ waste_date }}</p>
+      <p class="mb-1"><strong>Waste Type:</strong> {{ waste_type }}</p>
+
+      <p class="note-text mb-3">
+        You can submit your waste availability between 7:00 PM and 6:00 AM (IST)
+      </p>
+
+    <div>
+        <form method="POST">
+          <button type="submit" name="has_waste" value="true" class="btn btn-primary btn-lg">
+            I Have Waste 😊
+          </button>
+        </form>
+    </div>
+    </div>
+    </div>
+
+    <div class="container d-flex justify-content-center my-5">
+        <img src="{{ url_for('routeOptimization.static', filename='waste_availability_image.png') }}" alt="Waste Collection" class="img-fluid" style="max-width: 400px;">
+    </div>
+
 
     {% if message %}
     <script>
         alert("{{ message }}");
     </script>
     {% endif %}
+
+    <script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+  </script>
+
 </body>
 </html>
