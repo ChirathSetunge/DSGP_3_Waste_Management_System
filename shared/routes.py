@@ -1,4 +1,4 @@
-from flask import render_template, redirect, url_for, flash, session
+from flask import render_template, redirect, url_for, flash, session, request
 from datetime import datetime, timedelta
 from . import shared_bp
 from .forms import AdminLoginForm, AdminSignupForm, DriverLoginForm, DriverSignupForm, CitizenLoginForm
@@ -7,6 +7,8 @@ from .models import Admin, Driver, db, Citizen
 # Admin Routes
 @shared_bp.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
+    if request.method == 'GET':
+        session.clear()
     form = AdminLoginForm()
     if form.validate_on_submit():
         admin = Admin.query.filter_by(username=form.username.data).first()
