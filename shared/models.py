@@ -61,16 +61,11 @@ class DriverRoute(db.Model):
     assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_route(self, route_list):
-        """
-        Store the route in JSON form. 'route_list' might be an array of node-strings
-        like ["6.861,79.864", "6.862,79.865", ...] or an array of [lat, lon] pairs.
-        """
+
         self.route_data = json.dumps(route_list)
 
     def get_route(self):
-        """
-        Return the route as a Python list. (Convert from JSON.)
-        """
+
         return json.loads(self.route_data)
 
 class WasteAvailability(db.Model):
