@@ -12,10 +12,10 @@ from shared.forms import CitizenLoginForm
 @route_optimization_bp.route('/waste-collection-map-admin')
 def waste_collection_map_admin():
     now = datetime.utcnow()
-    fourteen_hours_ago = now - timedelta(hours=14)
-    threshold_str = fourteen_hours_ago.strftime("%Y-%m-%d %H:%M:%S")
-    waste_entries = WasteAvailability.query.filter(WasteAvailability.date >= threshold_str).all()
-
+    fourteen_hours_ago = datetime.utcnow() - timedelta(hours=14)
+    waste_entries = WasteAvailability.query.filter(
+        WasteAvailability.date >= fourteen_hours_ago
+    ).all()
     citizen_points = [{
         "lat": w.latitude,
         "lon": w.longitude,
@@ -30,15 +30,12 @@ def waste_collection_map_admin():
 
 @route_optimization_bp.route('/waste-collection-map')
 def waste_collection_map():
-    """
-    Driver page that displays the route assigned to the logged-in driver.
-    """
+
     vehicle_no = session.get('driver_vehicle_no')
     if not vehicle_no:
         flash('You must log in to access this page.', 'danger')
         return redirect(url_for('shared.driver_login'))
 
-    # We won't do any citizen matching. We'll just pass an empty list.
     citizen_points = []
 
     return render_template(
@@ -50,10 +47,7 @@ def waste_collection_map():
 # API: Assign Routes
 @route_optimization_bp.route('/api/assign-routes', methods=['POST'])
 def assign_routes():
-    """
-    Receives an array of route assignments from admin_map.html and
-    stores/updates them in the driver_routes table.
-    """
+
     data = request.get_json()
     assignments = data.get('assignments', [])
 
@@ -79,10 +73,7 @@ def assign_routes():
 # API: Get Driver Route
 @route_optimization_bp.route('/api/driver-route', methods=['GET'])
 def get_driver_route():
-    """
-    Returns the assigned route (array of node-strings) for the currently
-    logged-in driver, or 404 if no route was assigned.
-    """
+
     vehicle_no = session.get('driver_vehicle_no')
     if not vehicle_no:
         return jsonify({"error": "Not logged in"}), 401
@@ -142,14 +133,12 @@ def citizen_waste_availability():
                 window_start_ist = (window_end_ist - timedelta(days=1)).replace(hour=19, minute=0, second=0, microsecond=0)
 
             # Check if user already submitted in this window
-            # 1) Check DB entry ("I Have Waste")
+            #  Check DB entry ("I Have Waste")
             last_entry = (WasteAvailability.query
                           .filter_by(username=username)
                           .order_by(WasteAvailability.id.desc())
                           .first())
 
-            # 2) Check session entry ("I Don't Have Waste")
-            session_submitted_time = session['waste_submitted'].get(username)
 
             already_submitted = False
 
@@ -158,16 +147,6 @@ def citizen_waste_availability():
                     last_time_utc = datetime.strptime(last_entry.date, "%Y-%m-%d %H:%M:%S")
                     last_time_ist = last_time_utc.replace(tzinfo=pytz.utc).astimezone(tz_ist)
                     if last_time_ist >= window_start_ist:
-                        already_submitted = True
-                except ValueError:
-                    pass
-
-            if session_submitted_time:
-                try:
-                    # Parse the session time (stored as IST string) and localize it to IST
-                    naive_ist = datetime.strptime(session_submitted_time, "%Y-%m-%d %H:%M:%S")
-                    session_time_ist = tz_ist.localize(naive_ist)
-                    if session_time_ist >= window_start_ist:
                         already_submitted = True
                 except ValueError:
                     pass
@@ -183,7 +162,7 @@ def citizen_waste_availability():
                             username=citizen.username,
                             latitude=citizen.latitude,
                             longitude=citizen.longitude,
-                            date=now_utc.strftime("%Y-%m-%d %H:%M:%S")  # stored in UTC
+                            date=datetime.utcnow()  # store as a proper DateTime
                         )
                         db.session.add(new_entry)
                         db.session.commit()
@@ -210,7 +189,7 @@ def citizen_map():
         flash("Please log in as a citizen first.", "danger")
         return redirect(url_for('shared.citizen_login'))
 
-    # 1) Fetch the citizen record
+    # Fetch the citizen record
     citizen = Citizen.query.filter_by(username=session['citizen_username']).first()
     if not citizen:
         flash("Citizen record not found.", "danger")
@@ -219,10 +198,7 @@ def citizen_map():
     citizen_lat = citizen.latitude
     citizen_lon = citizen.longitude
 
-    # ---------------------------------------------------------------------
-    # 2) Check if the citizen has waste availability in the last 24 hours
-    #    (Adjust the time window as needed, e.g. 14 hours, 12 hours, etc.)
-    # ---------------------------------------------------------------------
+    # Check if the citizen has waste availability in the last 24 hours
     time_window_hours = 24
     cutoff = datetime.utcnow() - timedelta(hours=time_window_hours)
 
@@ -234,15 +210,14 @@ def citizen_map():
 
     if not recent_waste:
         # The citizen has no waste record in the last 24 hours
-        # => Show only their house, no route
+
         flash("You have not indicated any waste availability recently. No pickup route assigned.", "info")
 
         assigned_driver_no = "N/A"
         assigned_route = []
-        driver_start = [citizen_lat, citizen_lon]  # fallback
+        driver_start = [citizen_lat, citizen_lon]
     else:
         # Citizen does have a recent waste availability
-        # => We proceed to find which driver route includes them
         assigned_driver_no = None
         assigned_route = None
         TOLERANCE = 0.001
@@ -251,7 +226,7 @@ def citizen_map():
         all_driver_routes = DriverRoute.query.order_by(DriverRoute.assigned_at.desc()).all()
 
         for dr in all_driver_routes:
-            raw_points = dr.get_route()  # e.g. ["6.861,79.864","6.862,79.865"] or [[6.861,79.864], ...]
+            raw_points = dr.get_route()
             if not raw_points:
                 continue
 
@@ -305,7 +280,7 @@ def citizen_map():
             assigned_route = full_parsed
             driver_start = assigned_route[0]
 
-    # 4) Render the template
+    # Render the template
     return render_template(
         'citizen_map.html',
         citizen_lat=citizen_lat,

@@ -1,12 +1,16 @@
-from flask import render_template, redirect, url_for, flash, session
+from flask import render_template, redirect, url_for, flash, session, request
 from datetime import datetime, timedelta
 from . import shared_bp
 from .forms import AdminLoginForm, AdminSignupForm, DriverLoginForm, DriverSignupForm, CitizenLoginForm
-from .models import Admin, Driver, db, Citizen
+from .models import Admin, Driver, db, Citizen, WasteAvailability, DriverRoute
+import pytz
+import math
 
 # Admin Routes
 @shared_bp.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
+    if request.method == 'GET':
+        session.clear()
     form = AdminLoginForm()
     if form.validate_on_submit():
         admin = Admin.query.filter_by(username=form.username.data).first()
@@ -75,14 +79,25 @@ def driver_signup():
 
 @shared_bp.route('/driver/dashboard')
 def driver_dashboard():
-    # Example data for the dashboard
-    start_time = datetime.now()
-    eta = start_time + timedelta(hours=2)
-    total_houses = 25
+    vehicle_no = session.get('driver_vehicle_no')
+    if not vehicle_no:
+        flash('You must log in as a driver first.', 'danger')
+        return redirect(url_for('shared.driver_login'))
+
+    tz_ist = pytz.timezone("Asia/Kolkata")
+    now_ist = datetime.now(tz_ist)
+    start_time_ist = now_ist.replace(hour=9, minute=0, second=0, microsecond=0)
+
+    start_time = start_time_ist.astimezone(pytz.utc).replace(tzinfo=None)
+
+    fourteen_hours_ago = datetime.utcnow() - timedelta(hours=14)
+    total_houses = WasteAvailability.query.filter(
+        WasteAvailability.date >= fourteen_hours_ago.strftime("%Y-%m-%d %H:%M:%S")
+    ).count()
+
     return render_template(
         'driver_dashboard.html',
         start_time=start_time,
-        eta=eta,
         total_houses=total_houses
     )
 
@@ -104,3 +119,32 @@ def citizen_login():
 @shared_bp.route('/citizen/options')
 def citizen_options():
     return render_template('citizen_options.html')
+
+@shared_bp.route('/citizen/signup', methods=['GET', 'POST'])
+def citizen_signup():
+    from .forms import CitizenSignupForm
+    form = CitizenSignupForm()
+    if form.validate_on_submit():
+        # Check if the username already exists
+        existing_citizen = Citizen.query.filter_by(username=form.username.data).first()
+        if existing_citizen:
+            flash('Username already exists.', 'danger')
+            return render_template('citizen_signup.html', form=form)
+
+        # Create the new citizen
+        new_citizen = Citizen(
+            name=form.name.data,
+            username=form.username.data,
+            nic=form.nic.data,
+            phone=form.phone.data,
+            latitude=float(form.latitude.data),
+            longitude=float(form.longitude.data)
+        )
+        new_citizen.set_password(form.password.data)
+        db.session.add(new_citizen)
+        db.session.commit()
+
+        flash('Citizen Sign Up Successful!', 'success')
+        return redirect(url_for('shared.citizen_login'))
+
+    return render_template('citizen_signup.html', form=form)

@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MSW Prediction</title>
+  <title>SOW Prediction</title>
   <!-- CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('household.static', filename='predict_style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('household.static', filename='predict_style_sow.css') }}">
 </head>
 <body>
   <!-- Navbar -->
@@ -29,7 +29,7 @@
           </li>
         </ul>
       </div>
-        <span class="navbar-brand ms-auto">MSW Prediction</span>
+      <span class="navbar-brand ms-auto">SOW Prediction</span>
     </div>
   </nav>
 
@@ -48,8 +48,8 @@
 
     <!-- Collection Toggle -->
     <div class="mb-3">
-      <label for="mswCollected" class="form-label">A Collection Day (YES/NO):</label>
-      <select class="form-select" id="mswCollected">
+      <label for="sowCollected" class="form-label">SOW Collection Day (YES/NO):</label>
+      <select class="form-select" id="sowCollected">
         <option value="1">YES</option>
         <option value="0">NO</option>
       </select>
@@ -59,7 +59,7 @@
     <div class="mb-3">
       <label class="form-label">Select Route:</label>
       <div class="d-flex flex-wrap" id="routeButtons">
-        <!-- Route buttons will be here -->
+        <!-- Route buttons will be generated here -->
       </div>
     </div>
 
@@ -78,6 +78,6 @@
 
   <!-- JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="{{ url_for('household.static', filename='predict_script.js') }}"></script>
+  <script src="{{ url_for('household.static', filename='predict_script_sow.js') }}"></script>
 </body>
 </html>

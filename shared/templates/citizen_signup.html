@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Citizen Sign Up</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      crossorigin=""
+    />
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      crossorigin=""
+    ></script>
+
+    <style>
+        #mapModal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        #mapContent {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 20px;
+            width: 90%;
+            max-width: 600px;
+        }
+        #map {
+            width: 100%;
+            height: 400px;
+        }
+        @media (max-width: 600px) {
+            #mapContent {
+                width: 95%;
+                margin-top: 20%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Citizen Sign Up</h1>
+    <p>You have to register to the system from your home</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <p class="flash {{ category }}">{{ message }}</p>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+        {{ form.hidden_tag() }}
+
+        <div>
+            {{ form.name.label }}
+            {{ form.name(size=40) }}
+        </div>
+
+        <div>
+            {{ form.username.label }}
+            {{ form.username(size=40) }}
+        </div>
+
+        <div>
+            {{ form.nic.label }}
+            {{ form.nic(size=40) }}
+        </div>
+
+        <div>
+            {{ form.phone.label }}
+            {{ form.phone(size=40) }}
+        </div>
+
+        <div>
+            {{ form.password.label }}
+            {{ form.password(size=40) }}
+        </div>
+
+        <div>
+            {{ form.confirm_password.label }}
+            {{ form.confirm_password(size=40) }}
+        </div>
+
+        <button type="button" id="setLocationBtn">Set Your Location</button>
+
+        <label for="latitude">Latitude:</label>
+        {{ form.latitude }}
+        <label for="longitude">Longitude:</label>
+        {{ form.longitude }}
+
+        <div style="margin-top: 1em;">
+            {{ form.submit }}
+        </div>
+    </form>
+
+    <div id="mapModal">
+        <div id="mapContent">
+            <div id="map"></div>
+            <button id="confirmLocationBtn">Confirm Location</button>
+        </div>
+    </div>
+
+    <script>
+        const setLocationBtn = document.getElementById('setLocationBtn');
+        const mapModal = document.getElementById('mapModal');
+        const confirmLocationBtn = document.getElementById('confirmLocationBtn');
+
+        const latitudeField = document.getElementById('latitude');
+        const longitudeField = document.getElementById('longitude');
+
+        let map;
+        let marker;
+
+        setLocationBtn.addEventListener('click', () => {
+            mapModal.style.display = 'block';
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        initMap(lat, lng);
+                    },
+                    error => {
+                        alert('Error getting location. Please allow location access or enter manually.');
+                    }
+                );
+            } else {
+                alert('Geolocation is not supported by this browser.');
+            }
+        });
+
+        // Initialize or re-initialize the Leaflet map
+        function initMap(lat, lng) {
+            if (!map) {
+                // Create the map
+                map = L.map('map').setView([lat, lng], 16);
+
+                // Add OpenStreetMap tiles
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '© OpenStreetMap'
+                }).addTo(map);
+
+                // Create a draggable marker
+                marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+            } else {
+                // If the map already exists ,
+                // just move the marker and recenter the map
+                map.setView([lat, lng], 16);
+                marker.setLatLng([lat, lng]);
+            }
+        }
+
+        confirmLocationBtn.addEventListener('click', () => {
+            if (marker) {
+                const mPos = marker.getLatLng();
+                latitudeField.value = mPos.lat;
+                longitudeField.value = mPos.lng;
+            }
+            mapModal.style.display = 'none';
+        });
+    </script>
+</body>
+</html>

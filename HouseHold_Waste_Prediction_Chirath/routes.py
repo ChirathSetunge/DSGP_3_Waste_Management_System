@@ -2,17 +2,17 @@ from flask import render_template, request, jsonify
 import numpy as np
 import pandas as pd
 import sqlite3
-from tensorflow.keras.models import load_model
+from keras.models import load_model
 import joblib
 from HouseHold_Waste_Prediction_Chirath import household_bp
 
 # Load model, scaler, and label encoder
-model = load_model('HouseHold_Waste_Prediction_Chirath/ml_model/MSW_model.h5', compile=False)
-scaler = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/scaler.pkl')
-label_encoder = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/label_encoder.pkl')
-sow_model = load_model('HouseHold_Waste_Prediction_Chirath/ml_model/SOW_model.h5', compile=False)
-sow_scaler = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/sow_scaler.pkl')
-sow_label_encoder = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/sow_label_encoder.pkl')
+model = load_model('HouseHold_Waste_Prediction_Chirath/ml_model/MSW_model2.keras', compile=False)
+scaler = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/scaler2.pkl')
+label_encoder = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/label_encoder2.pkl')
+sow_model = load_model('HouseHold_Waste_Prediction_Chirath/ml_model/SOW_model2.keras', compile=False)
+sow_scaler = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/sow_scaler2.pkl')
+sow_label_encoder = joblib.load('HouseHold_Waste_Prediction_Chirath/ml_model/sow_label_encoder2.pkl')
 
 # Prediction Route in the Household component
 @household_bp.route('/predict', methods=['POST'])
@@ -119,7 +119,6 @@ def get_db_connection():
 
 @household_bp.route('/waste-entry')
 def waste_entry():
-    # Render the waste entry UI
     return render_template('waste_entry.html')
 
 @household_bp.route('/waste-entry/submit', methods=['POST'])
@@ -135,7 +134,6 @@ def submit_waste():
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Insert a record for each route with a non-empty waste amount.
         for route, msw_amount in waste_records.items():
             if msw_amount.strip():
                 cursor.execute(
@@ -149,8 +147,6 @@ def submit_waste():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# New endpoint: Get Last Recorded Date for a Route
 @household_bp.route('/get-last-date', methods=['GET'])
 def get_last_date():
     route = request.args.get('route')
@@ -260,6 +256,22 @@ def sow_prediction():
     print(predictions)
 
     return jsonify({'prediction': round(float(predictions[0]), 2)})
+@household_bp.route('/get-last-date-sow', methods=['GET'])
+def get_last_date_sow():
+    route = request.args.get('route')
+    if not route:
+        return jsonify({'error': 'No route provided'}), 400
+
+    conn = get_db_connection()
+    query = f"SELECT MAX([Dump Date]) as last_date FROM WasteDataSOW WHERE [Route] = '{route}'"
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+
+    if df.empty or df['last_date'].iloc[0] is None:
+        return jsonify({'last_date': None})
+
+    last_date = pd.to_datetime(df['last_date'].iloc[0])
+    return jsonify({'last_date': last_date.strftime('%Y-%m-%d')})
 
 @household_bp.route('/sow-prediction_ui')
 def sow_prediction_ui():
@@ -268,3 +280,36 @@ def sow_prediction_ui():
 @household_bp.route('/waste-entry-sow')
 def waste_entry_sow():
     return render_template('waste_entry_sow.html')
+
+@household_bp.route('/waste-entry-sow/submit', methods=['POST'])
+def submit_waste_sow():
+    try:
+        data = request.get_json()
+        dump_date = data.get("dump_date")
+        waste_records = data.get("waste_records", {})
+
+        if not dump_date or not waste_records:
+            return jsonify({"error": "Invalid data"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        for route, sow_amount in waste_records.items():
+            if sow_amount.strip():
+                cursor.execute(
+                    "INSERT INTO WasteDataSOW ([Dump Date], [Route], [SOW Wastage Amount (Kg)]) VALUES (?, ?, ?)",
+                    (dump_date, route, sow_amount)
+                )
+
+        conn.commit()
+        conn.close()
+        return jsonify({"message": "Data inserted successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@household_bp.route('/visualize')
+def visualize():
+    return render_template('msw_visualize.html')
+@household_bp.route('/visualize-sow')
+def visualize_sow():
+    return render_template('sow_visualize.html')
