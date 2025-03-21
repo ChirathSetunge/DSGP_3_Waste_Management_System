@@ -4,21 +4,95 @@
   <title>Admin Map</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600&display=swap">
+
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  >
   <style>
+    body {
+      font-family: 'Manrope', sans-serif;
+      background-color: #ffffff;
+      color: #0B437E;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bs-primary: #0B437E;
+    }
+
+
+    .navbar {
+      background-color: #0B437E !important;
+    }
+
     #map {
-      height: 100vh;
+      height: 80vh;
       width: 100%;
+    }
+
+    .hero-title {
+      color: #0B437E;
+      margin-bottom: 1rem;
+      font-weight: 600;
+    }
+
+    .note-text {
+      color: #2C5F97;
+      font-weight: 500;
+      font-size: 1rem;
+    }
+
+    .btn-primary:hover {
+      background-color: #083c63;
+      border-color: #083c63;
     }
   </style>
 </head>
 <body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="#">CleanUP</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link active" aria-current="page" href="#">Home</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">About</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">Contact</a>
+          </li>
+        </ul>
+        <span class="navbar-text fw-semibold">
+          Admin Map
+        </span>
+      </div>
+    </div>
+  </nav>
+
+
   <div id="map"></div>
 
   <!-- Include Leaflet and Turf JS libraries -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
+
+  <script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js">
+  </script>
 
   <script>
     // MAP SETUP
@@ -39,7 +113,6 @@
     const driverNumbers = {{ driver_numbers|tojson }};
     console.log("Driver Numbers:", driverNumbers);
 
-    // Colors for each driver's route
     const driverColors = ["red", "blue", "green"];
 
     //  OVERPASS CONFIG + WEIGHTS
@@ -56,11 +129,9 @@
     };
     const roadsWithGarbage = new Set([]); // If needed
 
-    // Average speed (km/h) and stop time (minutes) per stop (citizen pickup)
     const averageSpeed = 25; // km/h
     const stopTimeMinutes = 2; // minutes per stop
 
-    //  FETCH ROAD DATA
     async function fetchRoadData() {
       try {
         const response = await fetch(OVERPASS_API_URL);
@@ -232,7 +303,6 @@
     }
 
 
-    //    so we can measure total distance or draw the polyline.
     function buildFullPath(graph, route) {
       let fullPath = [];
       for (let i = 0; i < route.length - 1; i++) {
@@ -247,19 +317,15 @@
       return fullPath;
     }
 
-
-    // Compute estimated travel time (in minutes) for a given route
-    // Assumption: travel time (min) = (distance (km) / averageSpeed * 60) + (number of stops * stopTimeMinutes)
-    // Here, number of stops is route.length - 2 (excluding starting and ending depot).
     function estimateTravelTime(route, totalDistance) {
       const travelTimeMinutes = (totalDistance / averageSpeed) * 60;
-      // Exclude depot stops (first and last)
+
       const numberOfStops = route.length - 2;
       const stopsTimeMinutes = numberOfStops * stopTimeMinutes;
       return travelTimeMinutes + stopsTimeMinutes;
     }
 
-    // MAIN FUNCTION: Build, measure, and compare routes
+    // Build, measure, and compare routes
     async function visualizeMultiDriverRoutes() {
       const roadData = await fetchRoadData();
       if (!roadData || !roadData.elements) {
@@ -282,7 +348,7 @@
       const depotNode = findClosestNode(graph, depot.lat, depot.lon);
       const citizenNodes = citizenPoints.map(pt => findClosestNode(graph, pt.lat, pt.lon));
 
-      // A) Single-Driver TSP Route
+      //  Single-Driver TSP Route
       const allNodes = new Set(citizenNodes);
       allNodes.add(depotNode);
       const singleRoute = solveTSP(graph, allNodes, depotNode);
@@ -296,8 +362,7 @@
       console.log("Single-driver total distance:", singleRouteCost.toFixed(2), "km (approx)");
       console.log("Single-driver estimated travel time:", singleEstimatedTime.toFixed(1), "minutes");
 
-      // B) Three-Driver Split Routes
-      // We use the same overall TSP route ordering for splitting
+      // Three-Driver Split Routes
       const fullTspRoute = singleRoute;
       // Remove the depot from the beginning and end
       const internalRoute = fullTspRoute.slice(1, fullTspRoute.length - 1);
@@ -326,7 +391,6 @@
         const miniEstimatedTime = estimateTravelTime(miniRoute, miniRouteCost);
         driverTimes.push(miniEstimatedTime);
 
-        // Draw the mini-route on the map
         L.polyline(
           miniFullPath.map(n => n.split(",").map(Number)),
           { color: driverColors[index], weight: 4 }
@@ -351,16 +415,13 @@
         console.log(`Driver ${index+1} distance:`, miniRouteCost.toFixed(2), "km");
         console.log(`Driver ${index+1} estimated travel time:`, miniEstimatedTime.toFixed(1), "minutes");
 
-        // Prepare assignment object using the computed full path (miniFullPath)
-        // (Assumes that driverNumbers has at least 3 items.)
+        // Prepare assignment object using the computed full path
         driverAssignments.push({
           vehicle_no: driverNumbers[index],
           route: miniFullPath
         });
       });
 
-      // For multi-driver, overall total distance is the sum of all mini-route distances,
-      // while overall completion time (if running in parallel) is the maximum time among them.
       const totalMultiDistance = driverDistances.reduce((a, b) => a + b, 0);
       const maxMultiTime = Math.max(...driverTimes);
 
