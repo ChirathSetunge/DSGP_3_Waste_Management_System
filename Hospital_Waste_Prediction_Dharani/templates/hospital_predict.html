@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hospital Waste Prediction</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">CleanUP</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav">
+          <li class="nav-item">
+            <a class="nav-link" href="#">Home</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">About</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">Contact</a>
+          </li>
+        </ul>
+      </div>
+      <span class="navbar-brand ms-auto">Hospital Waste Prediction</span>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
+    <h2>Hospital Waste Prediction</h2>
+
+
+    <div class="mb-3">
+      <label for="dumpDate" class="form-label">Select Date:</label>
+      <input type="date" class="form-control" id="dumpDate">
+    </div>
+
+
+    <div class="mb-3">
+      <label for="precipitation" class="form-label">Precipitation (mm):</label>
+      <input type="number" class="form-control" id="precipitation" placeholder="Enter precipitation value">
+    </div>
+
+    <div class="mb-3">
+      <label for="dailyPatients" class="form-label">Daily Patient Count:</label>
+      <input type="number" class="form-control" id="dailyPatients" placeholder="Enter number of patients">
+    </div>
+
+
+    <button class="btn btn-primary" id="predictBtn">Predict</button>
+
+      <div class="mt-4">
+      <h4>Prediction Result:</h4>
+      <p id="predictionResult">Enter details and click predict to see results.</p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script src="{{ url_for('hospital.static', filename='hospital_script.js') }}"></script>
+
+</body>
+</html>
