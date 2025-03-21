@@ -2,6 +2,7 @@ from flask import Flask, render_template
 from shared import shared_bp, db
 from Route_Optimization_Gihanga import route_optimization_bp
 from HouseHold_Waste_Prediction_Chirath import household_bp
+from Hospital_Waste_Prediction_Dharani import hospital_bp
 
 app = Flask(__name__)
 
@@ -17,6 +18,7 @@ db.init_app(app)
 app.register_blueprint(shared_bp, url_prefix='/shared')
 app.register_blueprint(route_optimization_bp, url_prefix='/routeOptimization')
 app.register_blueprint(household_bp, url_prefix='/household')
+app.register_blueprint(hospital_bp, url_prefix='/hospital')
 # Home Route
 @app.route('/')
 def home():

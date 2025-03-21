@@ -3,22 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <title>Citizen Sign Up</title>
-    <!-- Leaflet CSS -->
     <link
       rel="stylesheet"
       href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       crossorigin=""
     />
-    <!-- Leaflet JS -->
     <script
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
       crossorigin=""
     ></script>
 
     <style>
-        /* Basic styling for the modal and map */
         #mapModal {
-            display: none; /* Hidden by default */
+            display: none;
             position: fixed;
             z-index: 9999;
             left: 0;
@@ -51,7 +48,6 @@
     <h1>Citizen Sign Up</h1>
     <p>You have to register to the system from your home</p>
 
-    <!-- Flash messages if any -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
@@ -93,10 +89,8 @@
             {{ form.confirm_password(size=40) }}
         </div>
 
-        <!-- Button to open the map modal and set location -->
         <button type="button" id="setLocationBtn">Set Your Location</button>
 
-        <!-- Hidden fields for latitude and longitude -->
         <label for="latitude">Latitude:</label>
         {{ form.latitude }}
         <label for="longitude">Longitude:</label>
@@ -107,7 +101,6 @@
         </div>
     </form>
 
-    <!-- Modal for the map -->
     <div id="mapModal">
         <div id="mapContent">
             <div id="map"></div>
@@ -120,18 +113,15 @@
         const mapModal = document.getElementById('mapModal');
         const confirmLocationBtn = document.getElementById('confirmLocationBtn');
 
-        // Access the hidden form fields by their IDs (Flask-WTF will set the ID to the field name)
         const latitudeField = document.getElementById('latitude');
         const longitudeField = document.getElementById('longitude');
 
         let map;
         let marker;
 
-        // Show the map modal and request user geolocation
         setLocationBtn.addEventListener('click', () => {
             mapModal.style.display = 'block';
 
-            // Use HTML5 geolocation to get user’s current position
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(
                     position => {
@@ -163,14 +153,13 @@
                 // Create a draggable marker
                 marker = L.marker([lat, lng], { draggable: true }).addTo(map);
             } else {
-                // If the map already exists (user re-opened the modal),
+                // If the map already exists ,
                 // just move the marker and recenter the map
                 map.setView([lat, lng], 16);
                 marker.setLatLng([lat, lng]);
             }
         }
 
-        // When the user confirms the location
         confirmLocationBtn.addEventListener('click', () => {
             if (marker) {
                 const mPos = marker.getLatLng();

@@ -4,34 +4,37 @@
   <meta charset="UTF-8">
   <title>Citizen Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600&display=swap">
+
   <!-- Leaflet & Turf -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
   <style>
-    /* Basic resets */
-    * {
-      box-sizing: border-box;
+    html, body {
       margin: 0;
       padding: 0;
+      height: 100%;
+      font-family: 'Manrope', sans-serif;
+      background-color: #ffffff;
+      color: #0B437E;
     }
-    body {
-      font-family: Arial, sans-serif;
-      background: #f0f0f0;
+
+    :root {
+      --bs-primary: #0B437E;
     }
-    header {
-      background-color: #0B437E;
-      color: white;
-      text-align: center;
-      padding: 10px;
-      font-size: 18px;
+
+    .navbar {
+      background-color: #0B437E !important;
     }
-    /* Map takes most of the viewport, leaving room for the bottom panel */
+
     #map {
+      height: calc(100vh - 116px);
       width: 100%;
-      height: calc(100vh - 120px);
     }
-    /* Bottom panel for live info */
+
     #infoPanel {
       position: fixed;
       bottom: 0;
@@ -47,13 +50,40 @@
       font-size: 16px;
       z-index: 1000;
     }
+
+    .btn-primary:hover {
+      background-color: #083c63;
+      border-color: #083c63;
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h2>Citizen Map</h2>
-    <p>Tracking your upcoming waste collection vehicle</p>
-  </header>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="#">CleanUP</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <!-- Example menu items -->
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item">
+            <a class="nav-link active" href="#">Home</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">About</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">Contact</a>
+          </li>
+        </ul>
+        <span class="navbar-text fw-semibold">
+          Citizen Map
+        </span>
+      </div>
+    </div>
+  </nav>
 
   <div id="map"></div>
 
@@ -64,32 +94,26 @@
   </div>
 
   <script>
-    // ------------------------------------------------------------------
     // Data from Flask (Jinja)
-    // ------------------------------------------------------------------
     const citizenLat = {{ citizen_lat }};
     const citizenLon = {{ citizen_lon }};
-    const assignedDriverNo = "{{ driver_vehicle_no }}";   // e.g. "PF-5678"
-    const driverStart = {{ driver_start|tojson }};         // e.g. [6.83, 79.86]
-    const driverRoute = {{ driver_route|tojson }};         // e.g. [[6.83,79.86],[6.832,79.865],...]
+    const assignedDriverNo = "{{ driver_vehicle_no }}";
+    const driverStart = {{ driver_start|tojson }};
+    const driverRoute = {{ driver_route|tojson }};
 
     // Constants
-    const averageSpeed = 25;    // km/h
-    const stopTimeMinutes = 2;  // minutes per pickup
-    const tolerance = 0.0003;   // lat/lon matching tolerance (~30m). Adjust as needed.
+    const averageSpeed = 25;
+    const stopTimeMinutes = 2;
+    const tolerance = 0.0003;
 
-    // ------------------------------------------------------------------
     // Initialize the Leaflet map
-    // ------------------------------------------------------------------
     const map = L.map("map").setView([citizenLat, citizenLon], 15);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "© OpenStreetMap contributors",
     }).addTo(map);
 
-    // ------------------------------------------------------------------
     // Mark the citizen's home
-    // ------------------------------------------------------------------
     const homeIcon = L.icon({
       iconUrl: "https://cdn-icons-png.flaticon.com/512/25/25694.png", // house icon
       iconSize: [35, 35],
@@ -99,9 +123,7 @@
       .addTo(map)
       .bindPopup("Your Home");
 
-    // ------------------------------------------------------------------
     // Mark the driver's start
-    // ------------------------------------------------------------------
     const truckIcon = L.icon({
       iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png", // truck icon
       iconSize: [35, 35],
@@ -111,9 +133,7 @@
       .addTo(map)
       .bindPopup("Driver Start");
 
-    // ------------------------------------------------------------------
     // Draw the driver's entire route as a polyline (if any)
-    // ------------------------------------------------------------------
     if (driverRoute.length > 1) {
       const routeLatLngs = driverRoute.map(pt => [pt[0], pt[1]]);
       L.polyline(routeLatLngs, { color: "blue", weight: 4 })
@@ -121,10 +141,6 @@
         .bindPopup(`Route for Truck ${assignedDriverNo}`);
     }
 
-    // ------------------------------------------------------------------
-    // Helper: compute distance between two [lat, lon] points
-    //         using Turf (units=kilometers).
-    // ------------------------------------------------------------------
     function distanceKm(a, b) {
       return turf.distance(
         turf.point([a[1], a[0]]),
@@ -133,11 +149,6 @@
       );
     }
 
-    // ------------------------------------------------------------------
-    // Helper: compute distance along the route up to a given index
-    // e.g. sum of distances route[0]->route[1] + route[1]->route[2] + ...
-    // up to route[endIndex].
-    // ------------------------------------------------------------------
     function computePartialRouteDistance(route, endIndex) {
       let dist = 0;
       for (let i = 0; i < endIndex; i++) {
@@ -146,11 +157,6 @@
       return dist;
     }
 
-    // ------------------------------------------------------------------
-    // Find the citizen’s index in the route
-    // (We assume the route includes the citizen’s location exactly,
-    //  or within a small tolerance.)
-    // ------------------------------------------------------------------
     let citizenIndex = -1;
     for (let i = 0; i < driverRoute.length; i++) {
       const latDiff = Math.abs(driverRoute[i][0] - citizenLat);
@@ -161,8 +167,6 @@
       }
     }
 
-    // If found, compute the partial distance from route[0] to route[citizenIndex].
-    // Then compute total time = travelTime + stopsTime.
     let distanceKmDisplay = 0;
     let etaMinutesDisplay = 0;
 
@@ -172,10 +176,6 @@
       // Travel time in minutes
       const travelTimeMinutes = (partialDist / averageSpeed) * 60;
 
-      // We assume each prior house is a stop. The route might have route[0] = depot, route[1] = first citizen, etc.
-      // So the number of stops is basically "how many houses come before me?"
-      // If route[0] is the depot, and route[1] is the first house, then if I'm house #7 in the route,
-      // my index is 7, meaning I've got 6 houses ahead of me => 6 * stopTimeMinutes.
       const numberOfStopsBeforeMe = citizenIndex - 1; // ignoring the depot at index 0
       const stopsTimeMinutes = numberOfStopsBeforeMe * stopTimeMinutes;
 
@@ -184,16 +184,11 @@
       distanceKmDisplay = partialDist.toFixed(2);
       etaMinutesDisplay = totalTime.toFixed(1);
     } else {
-      // If citizenIndex == 0, that means the citizen is route[0] => immediate
-      // If we never found them, citizenIndex = -1 => fallback direct distance
       distanceKmDisplay = distanceKm(driverStart, [citizenLat, citizenLon]).toFixed(2);
       // Just a naive time ignoring other stops
       etaMinutesDisplay = ((distanceKmDisplay / averageSpeed) * 60).toFixed(1);
     }
 
-    // ------------------------------------------------------------------
-    // Display final results
-    // ------------------------------------------------------------------
     document.getElementById("truckInfo").textContent = `Truck: ${assignedDriverNo}`;
     document.getElementById("distanceInfo").textContent = `Distance: ${distanceKmDisplay} km`;
     document.getElementById("etaInfo").textContent = `ETA: ${etaMinutesDisplay} min`;
