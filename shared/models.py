@@ -2,6 +2,7 @@ from . import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 import json
+from sqlalchemy import DateTime
 
 # Admin Model
 class Admin(db.Model):
@@ -78,4 +79,4 @@ class WasteAvailability(db.Model):
     username = db.Column(db.String(100), nullable=False)
     latitude = db.Column(db.Float, nullable=False)
     longitude = db.Column(db.Float, nullable=False)
-    date = db.Column(db.String(100))  # storing the date as a text string
+    date = db.Column(DateTime, nullable=False) # storing the date as a text string
