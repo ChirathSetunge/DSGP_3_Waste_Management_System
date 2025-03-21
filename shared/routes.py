@@ -1,10 +1,10 @@
-import pytz
-import math
 from flask import render_template, redirect, url_for, flash, session
 from datetime import datetime, timedelta
 from . import shared_bp
 from .forms import AdminLoginForm, AdminSignupForm, DriverLoginForm, DriverSignupForm, CitizenLoginForm
 from .models import Admin, Driver, db, Citizen, WasteAvailability, DriverRoute
+import pytz
+import math
 
 # Admin Routes
 @shared_bp.route('/admin/login', methods=['GET', 'POST'])
