@@ -15,7 +15,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
 
   <style>
-    /* Base + fonts */
     html, body {
       margin: 0;
       padding: 0;
@@ -28,18 +27,16 @@
       --bs-primary: #0B437E;
     }
 
-    /* Navbar */
+
     .navbar {
       background-color: #0B437E !important;
     }
 
-    /* The map is (100vh - 100px) if the bottom panel is 100px high. */
     #map {
       width: 100%;
-      height: calc(100vh - 100px - 56px); /* ~56px for the navbar, 100px for bottom panel */
+      height: calc(100vh - 100px - 56px);
     }
 
-    /* Bottom panel (100px) for directions */
     #directionControl {
       position: fixed;
       bottom: 0;
@@ -105,7 +102,6 @@
       opacity: 1 !important;
     }
 
-    /* Optional button hover color */
     .btn-primary:hover, #startBtn:hover, #nextBtn:hover {
       background-color: #083c63;
       border-color: #083c63;
@@ -121,7 +117,6 @@
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
-        <!-- Example menu items -->
         <ul class="navbar-nav me-auto">
           <li class="nav-item">
             <a class="nav-link active" href="#">Home</a>
@@ -142,12 +137,10 @@
 
   <div id="map"></div>
 
-  <!-- Bottom Panel -->
   <div id="directionControl">
-    <!-- START BUTTON -->
+
     <button id="startBtn">Start</button>
 
-    <!-- STEP CONTAINER (direction text + next button) -->
     <div id="stepContainer">
       <div id="directionText"></div>
       <button id="nextBtn">Next</button>
@@ -163,7 +156,6 @@
       attribution: "© OpenStreetMap contributors",
     }).addTo(map);
 
-   // We'll create a "driverMarker" after we build the route
     let driverMarker = null;
 
 
@@ -181,7 +173,6 @@
       path: 4,
     };
 
-    // Example roads with garbage
     const roadsWithGarbage = new Set([
       "6.832870,79.868815",
       "6.830379,79.867886",
@@ -450,10 +441,9 @@
     }
 
 
-    // MAIN: load the assigned route from driver_routes and visualize
+    //load the assigned route from driver_routes and visualize
     async function loadAssignedStops() {
       try {
-        // 1) Fetch route data from /routeOptimization/api/driver-route
         const response = await fetch('/routeOptimization/api/driver-route');
         if (!response.ok) {
           console.error("No route assigned or not logged in.");
@@ -464,17 +454,14 @@
           console.error(data.error);
           return;
         }
-        // route is an array of lat,lon strings from driver_routes
         const routePoints = data.route;
         console.log("Assigned route:", routePoints);
 
-        // 2) Convert them to lat/lon arrays
         const latLngs = routePoints.map(pt => {
           const [latStr, lonStr] = pt.split(",");
           return [parseFloat(latStr), parseFloat(lonStr)];
         });
 
-        // 3) Place circle markers for each assigned location
         latLngs.forEach((coord, idx) => {
           L.circleMarker(coord, {
             radius: 5,
@@ -486,25 +473,20 @@
           .bindPopup(`Stop #${idx + 1}`);
         });
 
-        // 4) Draw a red polyline if there's more than one stop
         if (latLngs.length > 1) {
           L.polyline(latLngs, { color: "red", weight: 4 }).addTo(map);
         }
 
-        // 5) Zoom to fit all stops
         if (latLngs.length > 0) {
           map.fitBounds(latLngs);
         }
 
-        // 6) If you want step-by-step directions, build Weighted Graph
         const roadData = await fetchRoadData();
         if (!roadData || !roadData.elements) return;
         const graph = buildWeightedGraph(roadData);
 
-        // Build direction steps from your route
         const allSteps = buildDirectionsWithPositions(routePoints, graph);
 
-        // 7) Place a driver marker at the first coordinate
         if (latLngs.length > 0) {
           driverMarker = L.marker(latLngs[0], {
             icon: L.icon({
@@ -516,7 +498,6 @@
           map.setView(latLngs[0], 17);
         }
 
-        // 8) Step-by-step UI
         const startBtn = document.getElementById("startBtn");
         const stepContainer = document.getElementById("stepContainer");
         const directionText = document.getElementById("directionText");
@@ -556,7 +537,6 @@
       }
     }
 
-    // Run on page load
     window.onload = loadAssignedStops;
   </script>
 </body>
