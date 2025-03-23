@@ -144,12 +144,18 @@ def citizen_waste_availability():
 
             if last_entry:
                 try:
-                    last_time_utc = datetime.strptime(last_entry.date, "%Y-%m-%d %H:%M:%S")
-                    last_time_ist = last_time_utc.replace(tzinfo=pytz.utc).astimezone(tz_ist)
+                    if last_entry.date.tzinfo is None:
+                        last_time_utc = last_entry.date.replace(tzinfo=pytz.utc)
+                    else:
+                        last_time_utc = last_entry.date
+
+                    # Convert to IST
+                    last_time_ist = last_time_utc.astimezone(tz_ist)
+
                     if last_time_ist >= window_start_ist:
                         already_submitted = True
-                except ValueError:
-                    pass
+                except Exception as e:
+                    print("Error handling last_entry.date:", e)
 
             if already_submitted:
                 message = "You have already submitted your selection in this time window."
@@ -204,7 +210,7 @@ def citizen_map():
 
     recent_waste = (WasteAvailability.query
                     .filter_by(username=citizen.username)
-                    .filter(WasteAvailability.date >= cutoff.strftime("%Y-%m-%d %H:%M:%S"))
+                    .filter(WasteAvailability.date >= cutoff)
                     .order_by(WasteAvailability.id.desc())
                     .first())
 
