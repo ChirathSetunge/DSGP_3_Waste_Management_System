@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoChat - Welcome</title>
+        <link rel="stylesheet" href="../static/css/landing.css">
+</head>
+<body>
+    <div class="landing-container">
+        <div class="logo">
+            <h1>EcoChat</h1>
+            <p>Your Waste Management Assistant</p>
+        </div>
+        <div class="buttons-container">
+            <a href="{{ url_for('user_dashboard') }}">
+                <button class="dashboard-button user-button">User Dashboard</button>
+            </a>
+            <a href="{{ url_for('admin_dashboard') }}">
+                <button class="dashboard-button admin-button">Admin Dashboard</button>
+            </a>
+        </div>
+    </div>
+</body>
+</html>

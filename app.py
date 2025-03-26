@@ -2,7 +2,7 @@ from flask import Flask, render_template
 from shared import shared_bp, db
 from Route_Optimization_Gihanga import route_optimization_bp
 from HouseHold_Waste_Prediction_Chirath import household_bp
-
+from Feedback_Complaints_Chatbot_Himan import chatbot_bp
 app = Flask(__name__)
 
 # Application Configuration
@@ -12,6 +12,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize the database
 db.init_app(app)
+
+app.register_blueprint(chatbot_bp, url_prefix='/chat')
 
 # Register the shared blueprint
 app.register_blueprint(shared_bp, url_prefix='/shared')
