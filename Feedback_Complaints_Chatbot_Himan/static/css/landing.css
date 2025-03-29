@@ -1,0 +1,39 @@
+        .landing-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+        }
+        .logo {
+            margin-bottom: 2rem;
+        }
+        .buttons-container {
+            display: flex;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        .dashboard-button {
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        .user-button {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .user-button:hover {
+            background-color: #3e8e41;
+        }
+        .admin-button {
+            background-color: #2196F3;
+            color: white;
+        }
+        .admin-button:hover {
+            background-color: #0b7dda;
+        }
