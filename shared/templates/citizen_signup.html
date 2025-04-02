@@ -2,171 +2,130 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Citizen Sign Up</title>
-    <link
-      rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      crossorigin=""
-    />
-    <script
-      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-      crossorigin=""
-    ></script>
-
-    <style>
-        #mapModal {
-            display: none;
-            position: fixed;
-            z-index: 9999;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.4);
-        }
-        #mapContent {
-            background-color: #fff;
-            margin: 10% auto;
-            padding: 20px;
-            width: 90%;
-            max-width: 600px;
-        }
-        #map {
-            width: 100%;
-            height: 400px;
-        }
-        @media (max-width: 600px) {
-            #mapContent {
-                width: 95%;
-                margin-top: 20%;
-            }
-        }
-    </style>
+    <!-- CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('shared.static', filename='/admin_auth.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 </head>
 <body>
-    <h1>Citizen Sign Up</h1>
-    <p>You have to register to the system from your home</p>
+    <div class="container-fluid">
+        <div class="row vh-100">
+            <div class="col-md-6 d-flex flex-column justify-content-center align-items-start p-5">
+                <h1 class="mb-3">Welcome</h1>
+                <h2 class="mb-4">Citizen Sign Up</h2>
 
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <p class="flash {{ category }}">{{ message }}</p>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% set category, message = messages[0] %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endif %}
+                {% endwith %}
 
-    <form method="POST">
-        {{ form.hidden_tag() }}
-
-        <div>
-            {{ form.name.label }}
-            {{ form.name(size=40) }}
-        </div>
-
-        <div>
-            {{ form.username.label }}
-            {{ form.username(size=40) }}
-        </div>
-
-        <div>
-            {{ form.nic.label }}
-            {{ form.nic(size=40) }}
-        </div>
-
-        <div>
-            {{ form.phone.label }}
-            {{ form.phone(size=40) }}
-        </div>
-
-        <div>
-            {{ form.password.label }}
-            {{ form.password(size=40) }}
-        </div>
-
-        <div>
-            {{ form.confirm_password.label }}
-            {{ form.confirm_password(size=40) }}
-        </div>
-
-        <button type="button" id="setLocationBtn">Set Your Location</button>
-
-        <label for="latitude">Latitude:</label>
-        {{ form.latitude }}
-        <label for="longitude">Longitude:</label>
-        {{ form.longitude }}
-
-        <div style="margin-top: 1em;">
-            {{ form.submit }}
-        </div>
-    </form>
-
-    <div id="mapModal">
-        <div id="mapContent">
-            <div id="map"></div>
-            <button id="confirmLocationBtn">Confirm Location</button>
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    <div class="mb-3">
+                        {{ form.name.label(class="form-label") }}
+                        {{ form.name(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.username.label(class="form-label") }}
+                        {{ form.username(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.nic.label(class="form-label") }}
+                        {{ form.nic(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.phone.label(class="form-label") }}
+                        {{ form.phone(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.password.label(class="form-label") }}
+                        {{ form.password(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.confirm_password.label(class="form-label") }}
+                        {{ form.confirm_password(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-secondary w-100" id="setLocationBtn">Set Your Location</button>
+                    </div>
+                    <div class="mb-3">
+                        {{ form.latitude.label(class="form-label") }}
+                        {{ form.latitude(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.longitude.label(class="form-label") }}
+                        {{ form.longitude(class="form-control") }}
+                    </div>
+                    <div class="mb-3">
+                        {{ form.submit(class="btn btn-primary w-100") }}
+                    </div>
+                </form>
+            </div>
+            <div class="col-md-6 d-none d-md-block p-0">
+                <img src="{{ url_for('shared.static', filename='images/citizen_signup.png') }}" alt="Citizen Signup Background" class="img-fluid vh-100 w-100">
+            </div>
         </div>
     </div>
 
-    <script>
-        const setLocationBtn = document.getElementById('setLocationBtn');
-        const mapModal = document.getElementById('mapModal');
-        const confirmLocationBtn = document.getElementById('confirmLocationBtn');
+    <!-- Map Modal -->
+    <div id="mapModal" class="modal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Select Your Location</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="map" style="width: 100%; height: 400px;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" id="confirmLocationBtn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        const latitudeField = document.getElementById('latitude');
-        const longitudeField = document.getElementById('longitude');
+    <!-- JS -->
+    <script src="{{ url_for('shared.static', filename='/admin_auth.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script>
+        document.getElementById('setLocationBtn').addEventListener('click', function() {
+            var mapModal = new bootstrap.Modal(document.getElementById('mapModal'));
+            mapModal.show();
+
+            navigator.geolocation.getCurrentPosition(position => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                initMap(lat, lng);
+            }, () => {
+                alert('Geolocation access denied. Please enable it or enter manually.');
+            });
+        });
 
         let map;
         let marker;
 
-        setLocationBtn.addEventListener('click', () => {
-            mapModal.style.display = 'block';
-
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    position => {
-                        const lat = position.coords.latitude;
-                        const lng = position.coords.longitude;
-                        initMap(lat, lng);
-                    },
-                    error => {
-                        alert('Error getting location. Please allow location access or enter manually.');
-                    }
-                );
-            } else {
-                alert('Geolocation is not supported by this browser.');
-            }
-        });
-
-        // Initialize or re-initialize the Leaflet map
         function initMap(lat, lng) {
             if (!map) {
-                // Create the map
                 map = L.map('map').setView([lat, lng], 16);
-
-                // Add OpenStreetMap tiles
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    maxZoom: 19,
-                    attribution: '© OpenStreetMap'
-                }).addTo(map);
-
-                // Create a draggable marker
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
                 marker = L.marker([lat, lng], { draggable: true }).addTo(map);
             } else {
-                // If the map already exists ,
-                // just move the marker and recenter the map
                 map.setView([lat, lng], 16);
                 marker.setLatLng([lat, lng]);
             }
         }
 
-        confirmLocationBtn.addEventListener('click', () => {
-            if (marker) {
-                const mPos = marker.getLatLng();
-                latitudeField.value = mPos.lat;
-                longitudeField.value = mPos.lng;
-            }
-            mapModal.style.display = 'none';
+        document.getElementById('confirmLocationBtn').addEventListener('click', function() {
+            const mPos = marker.getLatLng();
+            document.getElementById('latitude').value = mPos.lat;
+            document.getElementById('longitude').value = mPos.lng;
+            bootstrap.Modal.getInstance(document.getElementById('mapModal')).hide();
         });
     </script>
 </body>
