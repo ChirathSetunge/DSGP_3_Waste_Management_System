@@ -1,14 +1,96 @@
+/* Dashboard Card Styling */
 .dashboard-card {
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-        }
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+    height: 100%;
+}
+
 .card-header {
-            background-color: #f8f9fa;
-            border-bottom: none;
-            font-weight: bold;
-        }
+    background-color: #f8f9fa;
+    border-bottom: none;
+    font-weight: bold;
+}
+
+/* Navigation Bar */
+.navbar {
+    position: fixed;
+    top: 0;
+    width: 100%;
+    z-index: 1000;
+}
+
+/* Main Content */
+body {
+    padding-top: 60px;
+}
+
+/* Table Container */
 .table-container {
-            max-height: 400px;
-            overflow-y: auto;
-        }
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+
+    .table-container {
+        max-height: 300px;
+    }
+}
+
+/* Floating Button Styles */
+.floating-button {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: #007bff;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    transition: transform 0.2s, background-color 0.3s;
+    z-index: 900;
+}
+
+.floating-button:hover {
+    transform: scale(1.05);
+}
+
+.floating-button.active {
+    background-color: #28a745;
+    color: white;
+}
+
+/* Chart Responsiveness */
+canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Equal Height Row */
+.row {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+/* Ensure Full Width on Small Screens */
+@media (max-width: 576px) {
+    .col-md-6 {
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+
+    .dashboard-card {
+        margin-bottom: 15px;
+    }
+}

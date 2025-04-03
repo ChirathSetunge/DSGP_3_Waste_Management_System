@@ -10,88 +10,100 @@
     <script src="{{ url_for('chatbot.static', filename='js/chat_admin.js') }}"></script>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-success">
-        <div class="container">
-            <a class="navbar-brand" href="#">EcoChat Admin Dashboard</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="/admin/dashboard">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">Chat Interface</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-md-6">
-                <div class="card dashboard-card">
-                    <div class="card-header">
-                        Intent Distribution
-                    </div>
-                    <div class="card-body">
-                        <canvas id="intentChart"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card dashboard-card">
-                    <div class="card-header">
-                        Intent Statistics
-                    </div>
-                    <div class="card-body">
-                        <div id="statistics">
-                            <p>Loading statistics...</p>
-                        </div>
-                        <div class="filters mb-3">
-                            <label for="timeRange">Time Range:</label>
-                            <select id="timeRange" class="form-select" onchange="loadStatistics()">
-                                <option value="7">Last 7 days</option>
-                                <option value="30">Last 30 days</option>
-                                <option value="90">Last 90 days</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row">
-            <div class="col-12">
-                <div class="card dashboard-card">
-                    <div class="card-header">
-                        Recent User Intents
-                    </div>
-                    <div class="card-body">
-                        <div class="table-container">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Time</th>
-                                        <th>User Message</th>
-                                        <th>Intent</th>
-                                        <th>Confidence</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="recentIntentsTable">
-                                    <tr>
-                                        <td colspan="4" class="text-center">Loading data...</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">CleanUP</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav">
+          <li class="nav-item">
+            <a class="nav-link active" aria-current="page" href="#">Home</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">About</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">Contact</a>
+          </li>
+        </ul>
+        <span class="navbar-brand ms-auto d-none d-md-block">Chat Summary</span>
+      </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+  </nav>
+
+  <div class="container mt-4">
+    <div class="row">
+      <div class="col-lg-6 col-md-12 mb-4">
+        <div class="card dashboard-card">
+          <div class="card-header">
+            Intent Distribution
+          </div>
+          <div class="card-body">
+            <canvas id="intentChart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6 col-md-12 mb-4">
+        <div class="card dashboard-card">
+          <div class="card-header">
+            Intent Statistics
+          </div>
+          <div class="card-body">
+            <div id="statistics">
+              <p>Loading statistics...</p>
+            </div>
+            <div class="filters mb-3">
+              <label for="timeRange">Time Range:</label>
+              <select id="timeRange" class="form-select" onchange="loadStatistics()">
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="90">Last 90 days</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="col-12">
+        <div class="card dashboard-card">
+          <div class="card-header">
+            Recent User Intents
+          </div>
+          <div class="card-body">
+            <div class="table-responsive table-container">
+              <table class="table table-striped">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>User Message</th>
+                    <th>Intent</th>
+                    <th>Confidence</th>
+                  </tr>
+                </thead>
+                <tbody id="recentIntentsTable">
+                  <tr>
+                    <td colspan="4" class="text-center">Loading data...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Action Button -->
+  <div class="floating-button">
+    <i class="bi bi-plus-lg"></i>
+  </div>
+
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
