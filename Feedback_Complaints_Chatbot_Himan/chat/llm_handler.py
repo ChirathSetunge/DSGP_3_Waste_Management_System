@@ -7,7 +7,7 @@ class LLMHandler:
         self.llm = HuggingFaceEndpoint(
             endpoint_url="https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3",
             huggingfacehub_api_token=os.getenv("HUGGINGFACEHUB_API_TOKEN"),
-            max_length=50,
+            max_length=40,
             temperature=0.7,
             top_p=0.95,
             repetition_penalty=1.15
