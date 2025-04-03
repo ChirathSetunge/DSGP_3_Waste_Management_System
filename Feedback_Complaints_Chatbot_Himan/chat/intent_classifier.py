@@ -10,7 +10,7 @@ pad_sequences = tf.keras.utils.pad_sequences
 
 class IntentClassifier:
     def __init__(self, model_path=None, tokenizer_path=None, labels_path=None):
-        self.model_path = model_path or os.path.join(Config.MODEL_PATH, 'intent_model.h5')
+        self.model_path = model_path or os.path.join(Config.MODEL_PATH, 'best_intent_model (1).h5')
         self.tokenizer_path = tokenizer_path or os.path.join(Config.MODEL_PATH, 'tokenizer.pkl')
         self.labels_path = labels_path or os.path.join(Config.MODEL_PATH, 'intent_labels.pkl')
 
@@ -18,7 +18,7 @@ class IntentClassifier:
         self.tokenizer = self._load_tokenizer()
         self.labels = self._load_labels()
 
-        self.max_sequence_length = 21
+        self.max_sequence_length = 10
 
     def _load_model(self):
         try:
