@@ -163,3 +163,7 @@ def citizen_signup():
         return redirect(url_for('shared.citizen_login'))
 
     return render_template('citizen_signup.html', form=form)
+
+@shared_bp.route('/about')
+def about():
+    return render_template('about.html')
