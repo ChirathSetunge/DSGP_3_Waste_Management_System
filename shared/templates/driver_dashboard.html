@@ -17,7 +17,7 @@
                 <p class="mb-4">Manage your waste collection routes and tasks.</p>
                 <h3>Route Details</h3>
                 <p><b>Start Time:</b> {{ start_time.strftime('%Y-%m-%d %H:%M:%S') }}</p>
-                <p><b>Total Houses (Last 14 Hours):</b> {{ total_houses }}</p>
+                <p><b>Total Houses for the today's route (Last 14 Hours):</b> {{ total_houses }}</p>
 
                 <div class="list-group w-100">
                     <a href="{{ url_for('routeOptimization.waste_collection_map') }}" class="btn-adm text-center">Waste Collection Map</a>
