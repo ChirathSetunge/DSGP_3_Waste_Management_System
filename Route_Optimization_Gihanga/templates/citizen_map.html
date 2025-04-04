@@ -94,7 +94,7 @@
   </div>
 
   <script>
-    // Data from Flask (Jinja)
+    // Data from Flask
     const citizenLat = {{ citizen_lat }};
     const citizenLon = {{ citizen_lon }};
     const assignedDriverNo = "{{ driver_vehicle_no }}";
@@ -123,75 +123,71 @@
       .addTo(map)
       .bindPopup("Your Home");
 
-    // Mark the driver's start
-    const truckIcon = L.icon({
-      iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png", // truck icon
-      iconSize: [35, 35],
-      iconAnchor: [17, 35]
-    });
-    L.marker([driverStart[0], driverStart[1]], { icon: truckIcon })
-      .addTo(map)
-      .bindPopup("Driver Start");
+    // Only if there is a valid driver route, add truck marker and polyline
+    if (driverRoute.length > 0) {
+        // Mark driver's start
+        const truckIcon = L.icon({
+          iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+          iconSize: [35, 35],
+          iconAnchor: [17, 35]
+        });
+        L.marker([driverStart[0], driverStart[1]], { icon: truckIcon })
+          .addTo(map)
+          .bindPopup("Driver Start");
 
-    // Draw the driver's entire route as a polyline (if any)
-    if (driverRoute.length > 1) {
-      const routeLatLngs = driverRoute.map(pt => [pt[0], pt[1]]);
-      L.polyline(routeLatLngs, { color: "blue", weight: 4 })
-        .addTo(map)
-        .bindPopup(`Route for Truck ${assignedDriverNo}`);
-    }
+        // Draw polyline for the route
+        const routeLatLngs = driverRoute.map(pt => [pt[0], pt[1]]);
+        L.polyline(routeLatLngs, { color: "blue", weight: 4 })
+          .addTo(map)
+          .bindPopup(`Route for Truck ${assignedDriverNo}`);
 
-    function distanceKm(a, b) {
-      return turf.distance(
-        turf.point([a[1], a[0]]),
-        turf.point([b[1], b[0]]),
-        { units: "kilometers" }
-      );
-    }
-
-    function computePartialRouteDistance(route, endIndex) {
-      let dist = 0;
-      for (let i = 0; i < endIndex; i++) {
-        dist += distanceKm(route[i], route[i + 1]);
+        // compute and display distance/ETA as before...
+        function distanceKm(a, b) {
+          return turf.distance(
+            turf.point([a[1], a[0]]),
+            turf.point([b[1], b[0]]),
+            { units: "kilometers" }
+          );
+        }
+        function computePartialRouteDistance(route, endIndex) {
+          let dist = 0;
+          for (let i = 0; i < endIndex; i++) {
+            dist += distanceKm(route[i], route[i + 1]);
+          }
+          return dist;
+        }
+        let citizenIndex = -1;
+        for (let i = 0; i < driverRoute.length; i++) {
+          const latDiff = Math.abs(driverRoute[i][0] - citizenLat);
+          const lonDiff = Math.abs(driverRoute[i][1] - citizenLon);
+          if (latDiff < tolerance && lonDiff < tolerance) {
+            citizenIndex = i;
+            break;
+          }
+        }
+        let distanceKmDisplay = 0;
+        let etaMinutesDisplay = 0;
+        if (citizenIndex > 0) {
+          const partialDist = computePartialRouteDistance(driverRoute, citizenIndex);
+          const travelTimeMinutes = (partialDist / averageSpeed) * 60;
+          const numberOfStopsBeforeMe = citizenIndex - 1;
+          const stopsTimeMinutes = numberOfStopsBeforeMe * stopTimeMinutes;
+          const totalTime = travelTimeMinutes + stopsTimeMinutes;
+          distanceKmDisplay = partialDist.toFixed(2);
+          etaMinutesDisplay = totalTime.toFixed(1);
+        } else {
+          distanceKmDisplay = distanceKm(driverStart, [citizenLat, citizenLon]).toFixed(2);
+          etaMinutesDisplay = ((distanceKmDisplay / averageSpeed) * 60).toFixed(1);
+        }
+        document.getElementById("distanceInfo").textContent = `Distance: ${distanceKmDisplay} km`;
+        document.getElementById("etaInfo").textContent = `ETA: ${etaMinutesDisplay} min`;
+        document.getElementById("truckInfo").textContent = `Truck: ${assignedDriverNo}`;
+      } else {
+        // No route available: Only show citizen home marker.
+        document.getElementById("distanceInfo").textContent = `Distance: -- km`;
+        document.getElementById("etaInfo").textContent = `ETA: -- min`;
+        document.getElementById("truckInfo").textContent = `No Pickup Route`;
       }
-      return dist;
-    }
-
-    let citizenIndex = -1;
-    for (let i = 0; i < driverRoute.length; i++) {
-      const latDiff = Math.abs(driverRoute[i][0] - citizenLat);
-      const lonDiff = Math.abs(driverRoute[i][1] - citizenLon);
-      if (latDiff < tolerance && lonDiff < tolerance) {
-        citizenIndex = i;
-        break;
-      }
-    }
-
-    let distanceKmDisplay = 0;
-    let etaMinutesDisplay = 0;
-
-    if (citizenIndex > 0) {
-      // Distance from the driver’s start (route[0]) up to the citizen’s point
-      const partialDist = computePartialRouteDistance(driverRoute, citizenIndex);
-      // Travel time in minutes
-      const travelTimeMinutes = (partialDist / averageSpeed) * 60;
-
-      const numberOfStopsBeforeMe = citizenIndex - 1; // ignoring the depot at index 0
-      const stopsTimeMinutes = numberOfStopsBeforeMe * stopTimeMinutes;
-
-      const totalTime = travelTimeMinutes + stopsTimeMinutes;
-
-      distanceKmDisplay = partialDist.toFixed(2);
-      etaMinutesDisplay = totalTime.toFixed(1);
-    } else {
-      distanceKmDisplay = distanceKm(driverStart, [citizenLat, citizenLon]).toFixed(2);
-      // Just a naive time ignoring other stops
-      etaMinutesDisplay = ((distanceKmDisplay / averageSpeed) * 60).toFixed(1);
-    }
-
-    document.getElementById("truckInfo").textContent = `Truck: ${assignedDriverNo}`;
-    document.getElementById("distanceInfo").textContent = `Distance: ${distanceKmDisplay} km`;
-    document.getElementById("etaInfo").textContent = `ETA: ${etaMinutesDisplay} min`;
   </script>
 </body>
 </html>
