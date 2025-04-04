@@ -131,27 +131,27 @@
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark">
     <div class="container-fluid">
-      <a class="navbar-brand fw-bold" href="#">CleanSoft</a>
+      <a class="navbar-brand" href="#">CleanSoft</a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav me-auto">
           <li class="nav-item">
-            <a class="nav-link active" href="#">Home</a>
+            <a class="nav-link" href="{{ url_for('shared.driver_dashboard') }}">Home</a>
           </li>
           <li class="nav-item">
             <a class="nav-link" href="#">About</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="#">Contact</a>
+            <a class="nav-link" href="{{ url_for('shared.driver_dashboard') }}">Back</a>
           </li>
         </ul>
         <div class="ms-auto d-flex align-items-center">
-        <span class="navbar-text fw-semibold me-4">
+        <span class="navbar-brand ms-auto">
           Driver Map
         </span>
-        <span class="navbar-text fw-semibold">
+        <span class="navbar-brand ms-auto">
           Vehicle No: {{ vehicle_no }}
         </span>
       </div>
