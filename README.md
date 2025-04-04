@@ -31,7 +31,7 @@ We are AI and DS 2nd year students of Group 3 working on the project **“Munici
 - **Description:** Our interactive chatbot provides real-time assistance and system management.
 
 # Feature Prototype 
-![prototype](shared/static/images/prototype.png)
+![prototype](shared/static/images/prototype2.png)
 
 # Some of Our Memories
 ![Meeting with PHI](shared/static/images/landscape1.jpg)
