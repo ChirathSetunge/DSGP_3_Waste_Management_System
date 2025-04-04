@@ -1,23 +1,22 @@
 import pickle
 import os
 import pandas as pd
-from Feedback_Complaints_Chatbot_Himan.config import Config
+from google.colab import files
 
-# Load the data - adjust path as needed
-data = pd.read_excel('shuffled_text_queries.xlsx')
+uploaded = files.upload()
 
-# Extract unique categories/intents
+data = pd.read_excel('Waste Management Dataset.xlsx')
+
 intent_labels = sorted(data['Category'].unique().tolist())
 
 print(f"Found {len(intent_labels)} unique intent categories:")
 for i, label in enumerate(intent_labels):
     print(f"{i+1}. {label}")
 
-# Create directory if it doesn't exist
-os.makedirs(Config.MODEL_PATH, exist_ok=True)
+MODEL_PATH = "/content/model"
+os.makedirs(MODEL_PATH, exist_ok=True)
 
-# Save labels
-labels_path = os.path.join(Config.MODEL_PATH, 'intent_labels.pkl')
+labels_path = os.path.join(MODEL_PATH, 'intent_labels.pkl')
 with open(labels_path, 'wb') as f:
     pickle.dump(intent_labels, f)
 
