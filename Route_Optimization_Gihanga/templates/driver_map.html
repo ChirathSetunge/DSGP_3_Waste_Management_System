@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Driver Map - Step-by-Step with Simulated Driver Position</title>
+  <title>Driver Map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600&display=swap">
 
@@ -85,10 +85,6 @@
     }
 
     #nextBtn {
-      background-color: #3d5060;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
       font-size: 16px;
       padding: 10px 20px;
       cursor: pointer;
@@ -105,6 +101,29 @@
     .btn-primary:hover, #startBtn:hover, #nextBtn:hover {
       background-color: #083c63;
       border-color: #083c63;
+    }
+    /* Live coordinates display */
+    #liveCoords {
+      position: fixed;
+      top: 60px;
+      right: 10px;
+      background: rgba(255,255,255,0.8);
+      padding: 5px;
+      border-radius: 4px;
+      font-size: 14px;
+      z-index: 10000;
+    }
+    #vehicleNo {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(255,255,255,0.9);
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #0B437E;
+      z-index: 10000;
     }
   </style>
 </head>
@@ -128,14 +147,20 @@
             <a class="nav-link" href="#">Contact</a>
           </li>
         </ul>
-        <span class="navbar-text fw-semibold">
+        <div class="ms-auto d-flex align-items-center">
+        <span class="navbar-text fw-semibold me-4">
           Driver Map
         </span>
+        <span class="navbar-text fw-semibold">
+          Vehicle No: {{ vehicle_no }}
+        </span>
+      </div>
       </div>
     </div>
   </nav>
 
   <div id="map"></div>
+  <div id="liveCoords">Live Location: Not Available</div>
 
   <div id="directionControl">
 
@@ -149,6 +174,9 @@
 
   <script>
 
+    const isLeftHandTraffic = true;
+    const reverseRoute = true;
+
     //  Initialize the Map
     const map = L.map("map").setView([6.8330, 79.8690], 15);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -157,6 +185,9 @@
     }).addTo(map);
 
     let driverMarker = null;
+    let watchId = null; // geolocation watch ID
+    let currentIndex = 0; // current step index
+    let allSteps = [];
 
 
     // Overpass + Weighted Graph Setup
@@ -360,11 +391,7 @@
         if (endIndex >= path.length) return;
         const endCoordStr = path[endIndex];
         const [endLat, endLon] = endCoordStr.split(",").map(Number);
-        steps.push({
-          instruction,
-          lat: endLat,
-          lon: endLon
-        });
+        steps.push({ instruction, lat: endLat, lon: endLon });
       }
       for (let i = 0; i < path.length - 1; i++) {
         const currNode = path[i];
@@ -377,28 +404,29 @@
         const [lat2, lon2] = nextNode.split(",").map(Number);
         const b = turf.bearing(turf.point([lon1, lat1]), turf.point([lon2, lat2]));
         const bearing = (b + 360) % 360;
-        const cardinalDir = (bearing >= 22.5 && bearing < 67.5) ? "northeast" :
-                             (bearing >= 67.5 && bearing < 112.5) ? "east" :
-                             (bearing >= 112.5 && bearing < 157.5) ? "southeast" :
-                             (bearing >= 157.5 && bearing < 202.5) ? "south" :
-                             (bearing >= 202.5 && bearing < 247.5) ? "southwest" :
-                             (bearing >= 247.5 && bearing < 292.5) ? "west" :
-                             (bearing >= 292.5 && bearing < 337.5) ? "northwest" : "north";
         let turnDir = "straight";
         if (prevBearing !== null) {
           const turnAngle = (bearing - prevBearing + 360) % 360;
-          if (turnAngle > 30 && turnAngle < 180) {
-            turnDir = "right";
-          } else if (turnAngle >= 180 && turnAngle < 330) {
-            turnDir = "left";
+          // For left-hand traffic, swap turn instructions:
+          if (isLeftHandTraffic) {
+            if (turnAngle > 30 && turnAngle < 180) {
+              turnDir = "right";
+            } else if (turnAngle >= 180 && turnAngle < 330) {
+              turnDir = "left";
+            }
+          } else {
+            if (turnAngle > 30 && turnAngle < 180) {
+              turnDir = "right";
+            } else if (turnAngle >= 180 && turnAngle < 330) {
+              turnDir = "left";
+            }
           }
         }
+
         if (!currentStep) {
           currentStep = {
             roadName,
             totalDistance: distanceM,
-            directionText: cardinalDir,
-            arrow: "↑",
             turnDir: "straight",
             isFirstStep: true
           };
@@ -406,21 +434,18 @@
           if (roadName === currentStep.roadName && turnDir === "straight" && currentStep.turnDir === "straight") {
             currentStep.totalDistance += distanceM;
           } else {
-            const arrow = currentStep.arrow || "↑";
             let instruction;
             if (currentStep.isFirstStep) {
-              instruction = `${arrow} Head ${currentStep.directionText} on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
+              instruction = `Go straight on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
             } else {
               instruction = currentStep.turnDir === "straight" ?
-                `${arrow} Continue on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m` :
-                `${arrow} Turn ${currentStep.turnDir} onto ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
+                `Go straight on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m` :
+                `Turn ${currentStep.turnDir} onto ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`;
             }
             finalizeStep(i, instruction);
             currentStep = {
               roadName,
               totalDistance: distanceM,
-              directionText: cardinalDir,
-              arrow: (turnDir === "left") ? "←" : (turnDir === "right") ? "→" : "↑",
               turnDir,
               isFirstStep: false
             };
@@ -429,21 +454,20 @@
         prevBearing = bearing;
       }
       if (currentStep) {
-        const arrow = currentStep.arrow || "↑";
         let instruction = currentStep.isFirstStep ?
-          `${arrow} Head ${currentStep.directionText} on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m` :
+          `Go straight on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m` :
           (currentStep.turnDir === "straight" ?
-          `${arrow} Continue on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m` :
-          `${arrow} Turn ${currentStep.turnDir} onto ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`);
+            `Go straight on ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m` :
+            `Turn ${currentStep.turnDir} onto ${currentStep.roadName} for ${currentStep.totalDistance.toFixed(0)} m`);
         finalizeStep(path.length - 1, instruction);
       }
       return steps;
     }
 
-
     //load the assigned route from driver_routes and visualize
     async function loadAssignedStops() {
       try {
+        //  Fetch the assigned route (key stops only) from backend
         const response = await fetch('/routeOptimization/api/driver-route');
         if (!response.ok) {
           console.error("No route assigned or not logged in.");
@@ -454,90 +478,160 @@
           console.error(data.error);
           return;
         }
-        const routePoints = data.route;
-        console.log("Assigned route:", routePoints);
-
-        const latLngs = routePoints.map(pt => {
+        let routeStops = data.route;
+        if (reverseRoute) {
+          routeStops = routeStops.reverse();
+        }
+        console.log("Assigned route stops:", routeStops);
+        // Parse to numeric coordinate pairs
+        const stopCoords = routeStops.map(pt => {
           const [latStr, lonStr] = pt.split(",");
           return [parseFloat(latStr), parseFloat(lonStr)];
         });
-
-        latLngs.forEach((coord, idx) => {
-          L.circleMarker(coord, {
-            radius: 5,
-            color: "#000000",
-            fillColor: "#000000",
-            fillOpacity: 0.8
-          })
-          .addTo(map)
-          .bindPopup(`Stop #${idx + 1}`);
-        });
-
-        if (latLngs.length > 1) {
-          L.polyline(latLngs, { color: "red", weight: 4 }).addTo(map);
-        }
-
-        if (latLngs.length > 0) {
-          map.fitBounds(latLngs);
-        }
-
+        //  Fetch Overpass road data and build weighted graph
         const roadData = await fetchRoadData();
-        if (!roadData || !roadData.elements) return;
+        if (!roadData || !roadData.elements) {
+          console.error("Failed to fetch Overpass data.");
+          return;
+        }
         const graph = buildWeightedGraph(roadData);
-
-        const allSteps = buildDirectionsWithPositions(routePoints, graph);
-
-        if (latLngs.length > 0) {
-          driverMarker = L.marker(latLngs[0], {
+        // For each consecutive pair of stops, run Dijkstra and combine segments
+        let fullPathNodes = [];
+        for (let i = 0; i < stopCoords.length - 1; i++) {
+          const startStop = stopCoords[i];
+          const endStop = stopCoords[i + 1];
+          const startNode = findClosestNode(graph, startStop[0], startStop[1]);
+          const endNode = findClosestNode(graph, endStop[0], endStop[1]);
+          const segment = bidirectionalDijkstra(graph, startNode, endNode);
+          if (i === 0) {
+            fullPathNodes = segment;
+          } else {
+            // Avoid duplicating the junction node
+            fullPathNodes = fullPathNodes.concat(segment.slice(1));
+          }
+        }
+        //  Convert fullPathNodes (strings) to lat/lon arrays
+        const fullPathLatLngs = fullPathNodes.map(n => {
+          const [lat, lon] = n.split(",").map(Number);
+          return [lat, lon];
+        });
+        // Draw the full road-following polyline
+        L.polyline(fullPathLatLngs, { color: "red", weight: 4 }).addTo(map);
+        // 6) Draw markers for the original stops with a special icon for the depot (MC)
+        stopCoords.forEach((coord, idx) => {
+          if (idx === 0 || idx === stopCoords.length - 1) {
+            // Use a custom icon for the depot (Municipal Council)
+            const depotIcon = L.icon({
+              iconUrl: "https://cdn-icons-png.flaticon.com/512/854/854878.png",
+              iconSize: [40, 40],
+              iconAnchor: [20, 40],
+              popupAnchor: [0, -40]
+            });
+            let popupText = (idx === 0) ? "Municipal Council (Depot) - Start" : "Municipal Council (Depot) - End";
+            L.marker(coord, { icon: depotIcon })
+              .addTo(map)
+              .bindPopup(popupText);
+          } else {
+            // Regular house stops
+            L.circleMarker(coord, {
+              radius: 5,
+              color: "#000000",
+              fillColor: "#000000",
+              fillOpacity: 0.8
+            }).addTo(map).bindPopup(`House Stop #${idx}`);
+          }
+        });
+        if (fullPathLatLngs.length > 0) {
+          map.fitBounds(fullPathLatLngs);
+          driverMarker = L.marker(fullPathLatLngs[0], {
             icon: L.icon({
               iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
               iconSize: [35, 35],
               iconAnchor: [17, 35]
             })
           }).addTo(map);
-          map.setView(latLngs[0], 17);
         }
+        allSteps = buildDirectionsWithPositions(fullPathNodes, graph);
 
-        const startBtn = document.getElementById("startBtn");
-        const stepContainer = document.getElementById("stepContainer");
+        // Display the first instruction
         const directionText = document.getElementById("directionText");
-        const nextBtn = document.getElementById("nextBtn");
-        let currentIndex = -1;
-
-        function showNextStep() {
-          currentIndex++;
-          if (currentIndex < allSteps.length) {
-            const step = allSteps[currentIndex];
-            directionText.textContent = step.instruction;
-            if (step.lat !== null && step.lon !== null && driverMarker) {
-              driverMarker.setLatLng([step.lat, step.lon]);
-              map.panTo([step.lat, step.lon]);
-            }
-            nextBtn.disabled = false;
-          } else {
-            directionText.textContent = "Route Completed!";
-            nextBtn.disabled = true;
-          }
+        if (allSteps.length > 0) {
+          directionText.textContent = allSteps[0].instruction;
         }
 
-        startBtn.addEventListener("click", () => {
-          startBtn.classList.add("fadeOut");
-          setTimeout(() => {
-            startBtn.style.display = "none";
-            stepContainer.style.display = "flex";
-            stepContainer.classList.add("fadeIn");
-            showNextStep();
-          }, 300);
-        });
-
-        nextBtn.addEventListener("click", showNextStep);
 
       } catch (err) {
         console.error("Failed to load assigned route:", err);
       }
     }
 
+    // Start live tracking using the Geolocation API
+    function startLiveTracking() {
+      if (!navigator.geolocation) {
+        alert("Geolocation is not supported by your browser.");
+        return;
+      }
+      watchId = navigator.geolocation.watchPosition(successCallback, errorCallback, {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 10000
+      });
+    }
+    function successCallback(position) {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      if (driverMarker) {
+        driverMarker.setLatLng([lat, lon]);
+        map.panTo([lat, lon]);
+      }
+      console.log(`Live location: ${lat}, ${lon}`);
+      document.getElementById("liveCoords").textContent = `Live Location: ${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+      // Auto-check if current location is near the current direction step:
+      if (currentIndex < allSteps.length) {
+        const step = allSteps[currentIndex];
+        const currentLocation = turf.point([lon, lat]);
+        const stepLocation = turf.point([step.lon, step.lat]);
+        const distance = turf.distance(currentLocation, stepLocation, { units: "meters" });
+        if (distance < 20) {
+          nextBtn.disabled = false;
+        } else {
+          nextBtn.disabled = true;
+        }
+      }
+    }
+    function errorCallback(error) {
+      console.error("Error getting live location:", error);
+    }
+
+    // Next button event – manually advance to the next step when clicked.
+    const nextBtn = document.getElementById("nextBtn");
+    nextBtn.addEventListener("click", () => {
+      if (currentIndex < allSteps.length - 1) {
+        currentIndex++;
+        const directionText = document.getElementById("directionText");
+        directionText.textContent = allSteps[currentIndex].instruction;
+      } else {
+        const directionText = document.getElementById("directionText");
+        directionText.textContent = "Route Completed!";
+        navigator.geolocation.clearWatch(watchId);
+      }
+    });
+
+    // Start button event to begin live tracking
+    const startBtn = document.getElementById("startBtn");
+    const stepContainer = document.getElementById("stepContainer");
+    startBtn.addEventListener("click", () => {
+      startBtn.classList.add("fadeOut");
+      setTimeout(() => {
+        startBtn.style.display = "none";
+        stepContainer.style.display = "flex";
+        stepContainer.classList.add("fadeIn");
+        startLiveTracking();
+      }, 300);
+    });
+
     window.onload = loadAssignedStops;
+
   </script>
 </body>
 </html>
