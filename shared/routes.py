@@ -24,6 +24,8 @@ def admin_login():
 
 @shared_bp.route('/admin/signup', methods=['GET', 'POST'])
 def admin_signup():
+    if request.method == 'GET':
+        session.clear()
     form = AdminSignupForm()
     if form.validate_on_submit():
         existing_admin = Admin.query.filter_by(username=form.username.data).first()
@@ -47,6 +49,8 @@ def admin_options():
 # Driver Routes
 @shared_bp.route('/driver/login', methods=['GET', 'POST'])
 def driver_login():
+    if request.method == 'GET':
+        session.clear()
     form = DriverLoginForm()
     if form.validate_on_submit():
         driver = Driver.query.filter_by(vehicle_no=form.vehicle_no.data).first()
@@ -62,6 +66,8 @@ def driver_login():
 
 @shared_bp.route('/driver/signup', methods=['GET', 'POST'])
 def driver_signup():
+    if request.method == 'GET':
+        session.clear()
     form = DriverSignupForm()
     if form.validate_on_submit():
         existing_driver = Driver.query.filter_by(vehicle_no=form.vehicle_no.data).first()
@@ -119,6 +125,8 @@ def driver_dashboard():
 # Citizen routes
 @shared_bp.route('/citizen/login', methods=['GET', 'POST'])
 def citizen_login():
+    if request.method == 'GET':
+        session.clear()
     form = CitizenLoginForm()
     if form.validate_on_submit():
         citizen = Citizen.query.filter_by(username=form.username.data).first()
@@ -137,6 +145,8 @@ def citizen_options():
 
 @shared_bp.route('/citizen/signup', methods=['GET', 'POST'])
 def citizen_signup():
+    if request.method == 'GET':
+        session.clear()
     from .forms import CitizenSignupForm
     form = CitizenSignupForm()
     if form.validate_on_submit():
