@@ -85,16 +85,31 @@ def driver_dashboard():
         return redirect(url_for('shared.driver_login'))
 
     tz_ist = pytz.timezone("Asia/Kolkata")
-    now_ist = datetime.now(tz_ist)
-    start_time_ist = now_ist.replace(hour=9, minute=0, second=0, microsecond=0)
 
-    start_time = start_time_ist.astimezone(pytz.utc).replace(tzinfo=None)
+    # fetch the driver's latest assigned route
+    driver_route = (
+        DriverRoute.query
+        .filter_by(driver_vehicle_no=vehicle_no)
+        .order_by(DriverRoute.assigned_at.desc())
+        .first()
+    )
 
+    # If a route exists, use its assigned_at date (converted to IST) with time set to 09:00 AM.
+    if driver_route:
+        assigned_at_ist = driver_route.assigned_at.astimezone(tz_ist)
+        start_time_ist = assigned_at_ist.replace(hour=9, minute=0, second=0, microsecond=0)
+    else:
+        # If no route is assigned, default to today’s 9:00 AM IST.
+        now_ist = datetime.now(tz_ist)
+        start_time_ist = now_ist.replace(hour=9, minute=0, second=0, microsecond=0)
+
+    start_time = start_time_ist
+
+    # basic total for the last 14 hours
     fourteen_hours_ago = datetime.utcnow() - timedelta(hours=14)
     total_houses = WasteAvailability.query.filter(
         WasteAvailability.date >= fourteen_hours_ago.strftime("%Y-%m-%d %H:%M:%S")
     ).count()
-
     return render_template(
         'driver_dashboard.html',
         start_time=start_time,
