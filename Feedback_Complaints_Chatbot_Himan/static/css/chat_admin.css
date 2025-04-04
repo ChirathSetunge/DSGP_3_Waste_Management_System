@@ -94,3 +94,15 @@ canvas {
         margin-bottom: 15px;
     }
 }
+.custom-navbar {
+  background-color: #0B437E;
+}
+.custom-navbar .navbar-brand {
+  color: white;
+}
+.custom-navbar .nav-link:hover {
+  color: #e1e1e1;
+}
+.custom-navbar .nav-link {
+  color: #bdcad5;
+}
