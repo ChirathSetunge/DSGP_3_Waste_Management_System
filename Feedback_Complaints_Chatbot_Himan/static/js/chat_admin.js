@@ -149,7 +149,6 @@
             return colors;
         }
 
-        // Escape HTML to prevent XSS
         function escapeHtml(unsafe) {
             return unsafe
                 .replace(/&/g, "&amp;")
@@ -159,7 +158,6 @@
                 .replace(/'/g, "&#039;");
         }
 
-        // Initialize the dashboard
         function initDashboard() {
             // Load initial data
             loadStatistics();
@@ -172,7 +170,6 @@
             }, 60000);
         }
 
-        // Call initialization when the page is loaded
         document.addEventListener('DOMContentLoaded', initDashboard);
 
         
