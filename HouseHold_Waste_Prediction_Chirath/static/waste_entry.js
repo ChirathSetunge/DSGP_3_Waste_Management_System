@@ -1,4 +1,3 @@
-// list of routes.
 const routes = [
   '01 - VILAWALA', '29B - BORUPANA', '29A - KANDAWALA', '28 - RATMALANA EAST', '27 - ATTIDIYA NORTH',
   '26 - VIHARA', '25 - ATTIDIYA SOUTH', '24 - PIRIVENA', '23 - WEDIKANDA', '21 - ATTIDIYA NORTH',
