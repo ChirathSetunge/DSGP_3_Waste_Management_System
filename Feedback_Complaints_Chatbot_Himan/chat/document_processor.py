@@ -13,16 +13,46 @@ class DocumentProcessor:
             model_name="sentence-transformers/all-mpnet-base-v2"
         )
 
+    import os
+    from langchain_community.document_loaders import DirectoryLoader, TextLoader
+
     def load_documents(self):
         print(f"Loading documents from {self.knowledge_base_path}")
+
+        if not os.path.exists(self.knowledge_base_path):
+            print(f"Error: Directory {self.knowledge_base_path} does not exist!")
+            return []
+
+        # List files for debugging
+        txt_files = [f for f in os.listdir(self.knowledge_base_path) if f.endswith('.txt')]
+        print(f"Found {len(txt_files)} .txt files in directory: {txt_files}")
+
+        # Initialize loader with verbose output
         loader = DirectoryLoader(
             self.knowledge_base_path,
             glob="**/*.txt",
-            loader_cls=TextLoader
+            loader_cls=TextLoader,
+            silent_errors=False,  # Turn off silent errors to see the issue
+            loader_kwargs={"encoding": "utf-8"}  # Explicitly set encoding
         )
-        documents = loader.load()
-        print(f"Loaded {len(documents)} documents")
 
+        documents = []
+        try:
+            documents = loader.load()
+            print(f"Loaded {len(documents)} documents successfully")
+        except Exception as e:
+            print(f"Error loading documents: {e}")
+            # Try loading the file manually as a fallback
+            target_file = os.path.join(self.knowledge_base_path, "waste_guidelines.txt")
+            if os.path.exists(target_file):
+                try:
+                    manual_loader = TextLoader(target_file, encoding="utf-8")
+                    documents = manual_loader.load()
+                    print(f"Manually loaded {len(documents)} documents from {target_file}")
+                except Exception as manual_e:
+                    print(f"Manual loading failed: {manual_e}")
+
+        # Preview loaded documents
         for i, doc in enumerate(documents):
             print(f"Document {i + 1} content preview: {doc.page_content[:100]}...")
 
