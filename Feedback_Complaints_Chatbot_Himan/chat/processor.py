@@ -151,16 +151,16 @@ class ChatProcessor:
             return original_intent
 
     def _clean_response(self, response):
-        intro_patterns = [
-            r'^(Answer:|Response:|Based on (?:the |our |provided |available )?(?:information|data|context|knowledge|documents),)',
-            r'^(According to (?:the |our )?(?:information|data|context|knowledge|documents),)',
-            r'^(Here(?:\'s| is)(?: the| your| a| an)?)',
-            r'^(I found that|The answer is|Information:|Contact:|Please note that)',
-            r'^(You can|I would|I can|Let me)'
+        prefixes = [
+            "Answer: ",
+            "Response: ",
+            "Based on the information,",
+            "According to the information,",
         ]
 
-        for pattern in intro_patterns:
-            response = re.sub(pattern, '', response, flags=re.IGNORECASE)
+        for prefix in prefixes:
+            if response.strip().startswith(prefix):
+                response = response[len(prefix):].strip()
 
         response = re.sub(r'(\*{1,2}|_{1,2}|-{3,}|#{1,6}\s)', '', response)
         response = re.sub(r'^\d+\.\s*|\•\s*|\-\s*', '', response, flags=re.MULTILINE)
