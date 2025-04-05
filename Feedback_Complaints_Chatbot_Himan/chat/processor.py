@@ -45,6 +45,7 @@ class ChatProcessor:
                     - NO introductions or explanatory phrases
                     - Be conversational and human-friendly
                     - Start with the direct answer
+                    - DO NOT use quotes around your answer
                     - Only include contact information if explicitly requested
                     - Include contact information only if explicitly requested
                     - For collection schedules, only state the specific day and time
@@ -151,6 +152,12 @@ class ChatProcessor:
             return original_intent
 
     def _clean_response(self, response):
+        if isinstance(response, str):
+            if (response.strip().startswith('"') and response.strip().endswith('"')):
+                response = response.strip()[1:-1]
+            elif (response.strip().startswith("'") and response.strip().endswith("'")):
+                response = response.strip()[1:-1]
+
         prefixes = [
             "Answer: ",
             "Response: ",
@@ -164,7 +171,7 @@ class ChatProcessor:
 
         response = re.sub(r'(\*{1,2}|_{1,2}|-{3,}|#{1,6}\s)', '', response)
         response = re.sub(r'^\d+\.\s*|\•\s*|\-\s*', '', response, flags=re.MULTILINE)
-        response = re.sub(r'^[\'"]+|[\'"]+$', '', response)
+        response = re.sub(r'^[\'"]+|[\'"]+$', '', response, flags=re.MULTILINE)
         response = ' '.join(response.split())
 
         if response and len(response) > 0:
@@ -261,12 +268,53 @@ class ChatProcessor:
 
         return response
 
+    def get_contact_details_from_knowledge_base(self):
+        query = "municipal council contact details"
+        documents = self.vector_store.similarity_search(query, k=3)
+
+        contact_info = ""
+        for doc in documents:
+            if any(keyword in doc.page_content.lower() for keyword in ["contact", "phone", "email", "address"]):
+                contact_info += doc.page_content + "\n"
+
+        return contact_info
+
+    def _is_contact_request(self, message):
+        contact_keywords = ['contact', 'details', 'phone', 'number', 'email', 'address', 'website', 'office']
+        municipal_keywords = ['municipal', 'council', 'office', 'city', 'town', 'local']
+
+        has_contact_term = any(keyword in message.lower() for keyword in contact_keywords)
+        has_municipal_term = any(keyword in message.lower() for keyword in municipal_keywords)
+
+        return has_contact_term and has_municipal_term
+
     def process_message(self, message, session_id=None):
         try:
             if not session_id:
                 session_id = str(uuid.uuid4())
 
             intent, confidence = self.classify_intent(message, session_id)
+
+            if self._is_contact_request(message):
+                print("Detected contact details request, searching knowledge base directly")
+
+                contact_info = self.get_contact_details_from_knowledge_base()
+
+                if contact_info:
+                    print(f"Found contact info: {contact_info}")
+                    response_prompt = f"""
+                        The user asked: "{message}"
+
+                        Here is the contact information from our knowledge base:
+                        {contact_info}
+
+                        Please provide a clear, helpful response that directly answers their question.
+                        DO NOT hyperlink the Email link
+                        If they asked for specific contact details (like email only), provide only that information.
+                        If they asked for general contact details, provide all relevant information.
+                        Format the contact details clearly for the user.
+                    """
+                    return self._clean_response(self.llm_handler.generate_response(response_prompt))
 
             if self.is_waste_management_related(message):
                 documents = self.vector_store.similarity_search(message, k=3)
