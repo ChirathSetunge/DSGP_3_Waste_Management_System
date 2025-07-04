@@ -45,7 +45,14 @@
                     <a href="{{ url_for('chatbot.chatbot_admin_dashboard') }}" class="btn-adm text-center">View chatbot summary reports</a>
                 </div>
             </div>
-            <form method="post" action="{{ url_for('routeOptimization.set_driver_count') }}" class="mb-3">
+
+
+            <!-- Right Side -->
+            <div class="col-md-6 d-none d-md-block p-0">
+                <img src="{{ url_for('shared.static', filename='images/admin_option.png') }}" alt="Admin Options Background" class="img-fluid vh-100 w-100">
+            </div>
+        </div>
+        <form method="post" action="{{ url_for('routeOptimization.set_driver_count') }}" class="mb-3">
               <label for="driver_count" class="form-label">Number of Drivers for Route Assignment:</label>
               <input type="number" id="driver_count" name="driver_count" min="1" value="{{ session.get('driver_count', 3) }}" class="form-control w-25" required>
               <button type="submit" class="btn btn-primary mt-2">Set Driver Count</button>
@@ -57,12 +64,6 @@
               Not enough registered drivers ({{ driver_numbers|length }}) to assign to {{ driver_count }} routes.
             </div>
             {% endif %}
-
-            <!-- Right Side -->
-            <div class="col-md-6 d-none d-md-block p-0">
-                <img src="{{ url_for('shared.static', filename='images/admin_option.png') }}" alt="Admin Options Background" class="img-fluid vh-100 w-100">
-            </div>
-        </div>
     </div>
     <!-- JS -->
     <script src="{{ url_for('shared.static', filename='/admin_dashboard.js') }}"></script>
