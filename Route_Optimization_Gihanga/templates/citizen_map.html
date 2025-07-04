@@ -92,101 +92,107 @@
     <div id="etaInfo">ETA: -- min</div>
   </div>
 
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    // Data from Flask
-    const citizenLat = {{ citizen_lat }};
-    const citizenLon = {{ citizen_lon }};
+    // ─── Data from Flask ─────────────────────────────────────────────────────────
+    const citizenLat      = {{ citizen_lat }};
+    const citizenLon      = {{ citizen_lon }};
     const assignedDriverNo = "{{ driver_vehicle_no }}";
-    const driverStart = {{ driver_start|tojson }};
-    const driverRoute = {{ driver_route|tojson }};
+    const driverStart     = {{ driver_start|tojson }};
+    const driverRoute      = {{ driver_route|tojson }};
 
-    // Constants
-    const averageSpeed = 25;
-    const stopTimeMinutes = 2;
-    const tolerance = 0.0003;
+    // ─── Your new constants ───────────────────────────────────────────────────
+    const averageSpeed     = 25;      // km/h
+    const stopTimeMinutes  = 2;       // minutes per prior stop
+    const tolerance        = 0.0003;  // for matching coords
 
-    // Initialize the Leaflet map
+
+    // ─── Initialize Map ──────────────────────────────────────────────────────────
     const map = L.map("map").setView([citizenLat, citizenLon], 15);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
       attribution: "© OpenStreetMap contributors",
     }).addTo(map);
 
-    // Mark the citizen's home
+    // ─── Home Marker ──────────────────────────────────────────────────────────────
     const homeIcon = L.icon({
-      iconUrl: "https://cdn-icons-png.flaticon.com/512/25/25694.png", // house icon
+      iconUrl: "https://cdn-icons-png.flaticon.com/512/25/25694.png",
       iconSize: [35, 35],
       iconAnchor: [17, 35]
     });
     L.marker([citizenLat, citizenLon], { icon: homeIcon })
-      .addTo(map)
-      .bindPopup("Your Home");
+     .addTo(map)
+     .bindPopup("Your Home");
 
-    // Only if there is a valid driver route, add truck marker and polyline
-    if (driverRoute.length > 0) {
-        // Mark driver's start
-        const truckIcon = L.icon({
-          iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
-          iconSize: [35, 35],
-          iconAnchor: [17, 35]
+    // ─── Only if a route is assigned ─────────────────────────────────────────────
+    if (assignedDriverNo !== "N/A") {
+      // 1) Truck start marker
+      const truckIcon = L.icon({
+        iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
+        iconSize: [35, 35],
+        iconAnchor: [17, 35]
+      });
+      L.marker([driverStart[0], driverStart[1]], { icon: truckIcon })
+       .addTo(map)
+       .bindPopup("Driver Start");
+
+      // 2) Call OSRM for a real-road route
+      const osrmUrl =
+        `https://router.project-osrm.org/route/v1/driving/` +
+        `${driverStart[1]},${driverStart[0]};${citizenLon},${citizenLat}` +
+        `?overview=full&geometries=geojson`;
+
+      fetch(osrmUrl)
+        .then(r => r.json())
+        .then(data => {
+          const route = data.routes && data.routes[0];
+          if (!route) throw new Error("No route found");
+
+          // Draw the road-following polyline
+          const coords = route.geometry.coordinates.map(pt => [pt[1], pt[0]]);
+          L.polyline(coords, { color: "blue", weight: 4 })
+           .addTo(map)
+           .bindPopup(`Route to your home`);
+
+          // distance in km
+          const distKm = (route.distance / 1000).toFixed(2);
+
+          // compute how many stops before this citizen
+          let citizenIndex = -1;
+          for (let i = 0; i < driverRoute.length; i++) {
+            if (
+              Math.abs(driverRoute[i][0] - citizenLat) < tolerance &&
+              Math.abs(driverRoute[i][1] - citizenLon) < tolerance
+            ) {
+              citizenIndex = i;
+              break;
+            }
+          }
+          const stopsBefore = citizenIndex > 0 ? (citizenIndex - 1) : 0;
+          const stopsDelay = stopsBefore * stopTimeMinutes;
+
+          // travel time (min) + stops delay
+          const drivingMinutes = (route.distance / 1000 / averageSpeed) * 60;
+          const totalMinutes   = drivingMinutes + stopsDelay;
+
+          // update panel
+          document.getElementById("truckInfo").textContent   = `Truck: ${assignedDriverNo}`;
+          document.getElementById("distanceInfo").textContent = `Distance: ${distKm} km`;
+          document.getElementById("etaInfo").textContent      = `ETA: ${totalMinutes.toFixed(1)} min`;
+        })
+        .catch(err => {
+          console.error("Routing error:", err);
+          document.getElementById("truckInfo").textContent   = `No Route`;
+          document.getElementById("distanceInfo").textContent = `Distance: -- km`;
+          document.getElementById("etaInfo").textContent      = `ETA: -- min`;
         });
-        L.marker([driverStart[0], driverStart[1]], { icon: truckIcon })
-          .addTo(map)
-          .bindPopup("Driver Start");
-
-        // Draw polyline for the route
-        const routeLatLngs = driverRoute.map(pt => [pt[0], pt[1]]);
-        L.polyline(routeLatLngs, { color: "blue", weight: 4 })
-          .addTo(map)
-          .bindPopup(`Route for Truck ${assignedDriverNo}`);
-
-        // compute and display distance/ETA as before...
-        function distanceKm(a, b) {
-          return turf.distance(
-            turf.point([a[1], a[0]]),
-            turf.point([b[1], b[0]]),
-            { units: "kilometers" }
-          );
-        }
-        function computePartialRouteDistance(route, endIndex) {
-          let dist = 0;
-          for (let i = 0; i < endIndex; i++) {
-            dist += distanceKm(route[i], route[i + 1]);
-          }
-          return dist;
-        }
-        let citizenIndex = -1;
-        for (let i = 0; i < driverRoute.length; i++) {
-          const latDiff = Math.abs(driverRoute[i][0] - citizenLat);
-          const lonDiff = Math.abs(driverRoute[i][1] - citizenLon);
-          if (latDiff < tolerance && lonDiff < tolerance) {
-            citizenIndex = i;
-            break;
-          }
-        }
-        let distanceKmDisplay = 0;
-        let etaMinutesDisplay = 0;
-        if (citizenIndex > 0) {
-          const partialDist = computePartialRouteDistance(driverRoute, citizenIndex);
-          const travelTimeMinutes = (partialDist / averageSpeed) * 60;
-          const numberOfStopsBeforeMe = citizenIndex - 1;
-          const stopsTimeMinutes = numberOfStopsBeforeMe * stopTimeMinutes;
-          const totalTime = travelTimeMinutes + stopsTimeMinutes;
-          distanceKmDisplay = partialDist.toFixed(2);
-          etaMinutesDisplay = totalTime.toFixed(1);
-        } else {
-          distanceKmDisplay = distanceKm(driverStart, [citizenLat, citizenLon]).toFixed(2);
-          etaMinutesDisplay = ((distanceKmDisplay / averageSpeed) * 60).toFixed(1);
-        }
-        document.getElementById("distanceInfo").textContent = `Distance: ${distanceKmDisplay} km`;
-        document.getElementById("etaInfo").textContent = `ETA: ${etaMinutesDisplay} min`;
-        document.getElementById("truckInfo").textContent = `Truck: ${assignedDriverNo}`;
-      } else {
-        // No route available: Only show citizen home marker.
-        document.getElementById("distanceInfo").textContent = `Distance: -- km`;
-        document.getElementById("etaInfo").textContent = `ETA: -- min`;
-        document.getElementById("truckInfo").textContent = `No Pickup Route`;
-      }
+    } else {
+      // ─── No route (no waste submitted) ────────────────────────────────────
+      document.getElementById("truckInfo").textContent   = `No Pickup Route`;
+      document.getElementById("distanceInfo").textContent = `Distance: -- km`;
+      document.getElementById("etaInfo").textContent      = `ETA: -- min`;
+    }
   </script>
 </body>
 </html>
