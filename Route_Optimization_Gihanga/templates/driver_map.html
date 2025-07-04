@@ -475,7 +475,8 @@
         }
         const data = await response.json();
         if (data.error) {
-          console.error(data.error);
+          console.warn("Driver route load skipped:", data.error);
+          alert("No valid route assigned for today.");
           return;
         }
         let routeStops = data.route;
