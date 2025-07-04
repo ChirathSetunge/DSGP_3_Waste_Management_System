@@ -12,7 +12,8 @@ from shared.forms import CitizenLoginForm
 @route_optimization_bp.route('/waste-collection-map-admin')
 def waste_collection_map_admin():
     now = datetime.utcnow()
-    fourteen_hours_ago = datetime.utcnow() - timedelta(hours=14)
+    fourteen_hours_ago = now - timedelta(hours=14)
+
     waste_entries = WasteAvailability.query.filter(
         WasteAvailability.date >= fourteen_hours_ago
     ).all()
@@ -25,8 +26,26 @@ def waste_collection_map_admin():
 
     drivers = Driver.query.all()
     driver_numbers = [driver.vehicle_no for driver in drivers]
+    driver_count = session.get('driver_count', 3)
 
-    return render_template('admin_map.html', citizen_points=citizen_points, driver_numbers=driver_numbers)
+    return render_template(
+        'admin_map.html',
+        citizen_points=citizen_points,
+        driver_numbers=driver_numbers,
+        driver_count=driver_count
+    )
+
+@route_optimization_bp.route('/set-driver-count', methods=['POST'])
+def set_driver_count():
+    try:
+        driver_count = int(request.form.get('driver_count', 3))
+        if driver_count < 1:
+            raise ValueError("Driver count must be at least 1.")
+        session['driver_count'] = driver_count
+        flash(f"{driver_count} drivers set for route assignment.", "success")
+    except ValueError:
+        flash("Invalid driver count.", "danger")
+    return redirect(url_for('shared.admin_options'))
 
 @route_optimization_bp.route('/waste-collection-map')
 def waste_collection_map():
@@ -73,7 +92,6 @@ def assign_routes():
 # API: Get Driver Route
 @route_optimization_bp.route('/api/driver-route', methods=['GET'])
 def get_driver_route():
-
     vehicle_no = session.get('driver_vehicle_no')
     if not vehicle_no:
         return jsonify({"error": "Not logged in"}), 401
@@ -84,15 +102,19 @@ def get_driver_route():
         .order_by(DriverRoute.assigned_at.desc())
         .first()
     )
+
     if not driver_route:
         return jsonify({"error": "No route assigned"}), 404
 
-    # Return the stored route as JSON
+    # Check if the route is fresh (e.g., assigned in the last 14 hours)
+    time_threshold = datetime.utcnow() - timedelta(hours=14)
+    if driver_route.assigned_at < time_threshold:
+        return jsonify({"error": "No valid route assigned for today."}), 404
+
     return jsonify({
         "route": driver_route.get_route(),
         "assigned_at": driver_route.assigned_at.isoformat()
     })
-
 
 @route_optimization_bp.route('/citizen/waste_availability', methods=['GET', 'POST'])
 def citizen_waste_availability():
