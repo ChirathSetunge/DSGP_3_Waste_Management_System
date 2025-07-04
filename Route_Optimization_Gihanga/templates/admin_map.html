@@ -85,6 +85,10 @@
     </div>
   </nav>
 
+  <div class="container mt-3">
+  <p class="note-text">Currently assigning routes for <strong>{{ driver_count }}</strong> driver{{ 's' if driver_count > 1 else '' }}.</p>
+  </div>
+
 
   <div id="map"></div>
 
@@ -103,6 +107,8 @@
       maxZoom: 19,
       attribution: "© OpenStreetMap contributors",
     }).addTo(map);
+
+    const reverseRoute = true;
 
     // Depot (Municipal Council) fixed at these coordinates
     const depot = { lat: 6.8613, lon: 79.8643 };
@@ -369,60 +375,75 @@
       // Remove the depot from the beginning and end
       const internalRoute = fullTspRoute.slice(1, fullTspRoute.length - 1);
       const totalCitizens = internalRoute.length;
-      const subsetSize = Math.ceil(totalCitizens / 3);
 
-      const subset1 = internalRoute.slice(0, subsetSize);
-      const subset2 = internalRoute.slice(subsetSize, 2 * subsetSize);
-      const subset3 = internalRoute.slice(2 * subsetSize);
-      const driverSubsets = [subset1, subset2, subset3];
+      const driverCount = {{ driver_count }};
+      if (driverNumbers.length < driverCount) {
+          alert(`Not enough drivers: Only ${driverNumbers.length} available but ${driverCount} requested.`);
+          return;
+      }
+      const subsetSize = Math.ceil(totalCitizens / driverCount);
+      const driverSubsets = [];
+
+      for (let i = 0; i < driverCount; i++) {
+      const start = i * subsetSize;
+      const end = (i + 1) * subsetSize;
+      driverSubsets.push(internalRoute.slice(start, end));
+      }
+
 
       let driverAssignments = [];
       let driverDistances = [];
       let driverTimes = [];
 
       driverSubsets.forEach((subset, index) => {
-        // For each subset, add depot to get a complete mini-route
-        const subsetNodes = new Set(subset);
-        subsetNodes.add(depotNode);
-        const miniRoute = solveTSP(graph, subsetNodes, depotNode);
-        const miniFullPath = buildFullPath(graph, miniRoute);
-        const miniRouteCost = getPathCost(graph, miniFullPath);
-        driverDistances.push(miniRouteCost);
+          const subsetNodes = new Set(subset);
+          subsetNodes.add(depotNode);
+          let miniRoute = solveTSP(graph, subsetNodes, depotNode);
 
-        // Estimate travel time for this mini-route
-        const miniEstimatedTime = estimateTravelTime(miniRoute, miniRouteCost);
-        driverTimes.push(miniEstimatedTime);
-
-        L.polyline(
-          miniFullPath.map(n => n.split(",").map(Number)),
-          { color: driverColors[index], weight: 4 }
-        ).addTo(map).bindPopup(`Driver ${index+1} Route`);
-
-        // Add colored markers (dots) at each stop (excluding depot)
-        miniRoute.forEach((node, idx) => {
-          // Skip the depot node at start and end if desired:
-          if (node !== depotNode) {
-            const coords = node.split(",").map(Number);
-            L.circleMarker(coords, {
-              radius: 6,
-              color: driverColors[index],
-              fillColor: driverColors[index],
-              fillOpacity: 1
-            }).addTo(map)
-            .bindPopup(`Driver ${index+1} Stop ${idx}`);
+          // Reverse if needed
+          if (reverseRoute) {
+            const depotStart = miniRoute[0];
+            const depotEnd = miniRoute[miniRoute.length - 1];
+            const middleStops = miniRoute.slice(1, -1).reverse();
+            miniRoute = [depotStart, ...middleStops, depotEnd];
           }
-        });
 
-        console.log(`Driver ${index+1} route:`, miniRoute);
-        console.log(`Driver ${index+1} distance:`, miniRouteCost.toFixed(2), "km");
-        console.log(`Driver ${index+1} estimated travel time:`, miniEstimatedTime.toFixed(1), "minutes");
+          const miniFullPath = buildFullPath(graph, miniRoute);
+          const miniRouteCost = getPathCost(graph, miniFullPath);
+          driverDistances.push(miniRouteCost);
 
-        // Prepare assignment object using the computed full path
-        driverAssignments.push({
-            vehicle_no: driverNumbers[index],
+          const miniEstimatedTime = estimateTravelTime(miniRoute, miniRouteCost);
+          driverTimes.push(miniEstimatedTime);
+
+          L.polyline(
+            miniFullPath.map(n => n.split(",").map(Number)),
+            { color: driverColors[index % driverColors.length], weight: 4 }
+          ).addTo(map).bindPopup(`Driver ${index+1} Route`);
+
+          miniRoute.forEach((node, idx) => {
+            if (node !== depotNode) {
+              const coords = node.split(",").map(Number);
+              L.circleMarker(coords, {
+                radius: 6,
+                color: driverColors[index % driverColors.length],
+                fillColor: driverColors[index % driverColors.length],
+                fillOpacity: 1
+              }).addTo(map).bindPopup(`Driver ${index+1} Stop ${idx}`);
+            }
+          });
+
+          const driverVehicleNo = driverNumbers[index]; // ✅ GET vehicle number for this driver
+
+          driverAssignments.push({
+            vehicle_no: driverVehicleNo,
             route: miniRoute
+          });
+
+          console.log(`Driver ${index+1} route:`, miniRoute);
+          console.log(`Driver ${index+1} distance:`, miniRouteCost.toFixed(2), "km");
+          console.log(`Driver ${index+1} estimated travel time:`, miniEstimatedTime.toFixed(1), "minutes");
         });
-      });
+
 
       const totalMultiDistance = driverDistances.reduce((a, b) => a + b, 0);
       const maxMultiTime = Math.max(...driverTimes);
