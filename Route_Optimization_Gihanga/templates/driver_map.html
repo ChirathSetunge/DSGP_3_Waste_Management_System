@@ -585,6 +585,18 @@
         driverMarker.setLatLng([lat, lon]);
         map.panTo([lat, lon]);
       }
+
+      // ─── NEW: immediately push this update up to your Flask API ──────────────
+      fetch('/routeOptimization/api/live-coordinates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat, lon })
+      })
+      .then(r => r.json())
+      .then(j => console.log('Live location sent:', j))
+      .catch(err => console.error('Error sending live coords:', err));
+      // ─────────────────────────────────────────────────────────────────────────
+
       console.log(`Live location: ${lat}, ${lon}`);
       document.getElementById("liveCoords").textContent = `Live Location: ${lat.toFixed(6)}, ${lon.toFixed(6)}`;
       // Auto-check if current location is near the current direction step:
@@ -630,6 +642,26 @@
         startLiveTracking();
       }, 300);
     });
+
+    // 🔴 Send live location to server every 2 minutes
+    setInterval(() => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          fetch('/routeOptimization/api/live-coordinates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              lat: pos.coords.latitude,
+              lon: pos.coords.longitude
+            })
+          })
+          .then(res => res.json())
+          .then(data => console.log("Live location sent:", data))
+          .catch(err => console.error("Failed to send live location:", err));
+        });
+      }
+    }, 120000); // 2 minutes
+
 
     window.onload = loadAssignedStops;
 
