@@ -317,3 +317,44 @@ def citizen_map():
         driver_start=driver_start,
         driver_route=assigned_route
     )
+
+# at top of the file, above your route definitions
+# holds the most recent GPS for each vehicle_no
+live_coords = {}
+
+# POST: drivers send their own lat/lon
+@route_optimization_bp.route('/api/live-coordinates', methods=['POST'])
+def update_live_coords():
+    # you already have vehicle_no in session when driver logs in
+    vehicle_no = session.get('driver_vehicle_no')
+    if not vehicle_no:
+        return jsonify({'error':'Not logged in'}), 401
+
+    data = request.get_json() or {}
+    lat = data.get('lat')
+    lon = data.get('lon')
+    if lat is None or lon is None:
+        return jsonify({'error':'Missing lat/lon'}), 400
+
+    # store or overwrite
+    live_coords[vehicle_no] = {'lat': lat, 'lon': lon}
+    return jsonify({'status':'updated'}), 200
+
+# GET: admin (or citizen) can fetch one or all
+@route_optimization_bp.route('/api/live-coordinates', methods=['GET'])
+def get_live_coords():
+    # ?vehicle=PF-1234 => single driver
+    vehicle = request.args.get('vehicle')
+    if vehicle:
+        coords = live_coords.get(vehicle)
+        if not coords:
+            return jsonify({'error':f'No coords for {vehicle}'}), 404
+        return jsonify(coords), 200
+
+    # no param => return list of all drivers
+    all_list = [
+        {'vehicle_no': vn, 'lat': v['lat'], 'lon': v['lon']}
+        for vn, v in live_coords.items()
+    ]
+    return jsonify(all_list), 200
+
