@@ -193,6 +193,38 @@
       document.getElementById("distanceInfo").textContent = `Distance: -- km`;
       document.getElementById("etaInfo").textContent      = `ETA: -- min`;
     }
+
+    <!-- LIVE DRIVER MARKER -->
+
+    let liveDriverMarker;
+  async function updateMyDriver() {
+    if (assignedDriverNo === "N/A") return;
+    try {
+      const res = await fetch(
+        `/routeOptimization/api/live-coordinates?vehicle=${assignedDriverNo}`
+      );
+      const d = await res.json();
+      const pos = [d.lat, d.lon];
+      if (!liveDriverMarker) {
+        liveDriverMarker = L.circleMarker(pos, {
+          radius: 8,
+          color: 'red',
+          fillColor: 'red',
+          fillOpacity: 1
+        })
+        .addTo(map)
+        .bindPopup(`Truck ${assignedDriverNo}`);
+      } else {
+        liveDriverMarker.setLatLng(pos);
+      }
+    } catch (err) {
+      console.error('failed to fetch my driver coords', err);
+    }
+  }
+
+  updateMyDriver();
+  setInterval(updateMyDriver, 120000);
+
   </script>
 </body>
 </html>
