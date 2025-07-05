@@ -468,6 +468,41 @@
 
     window.onload = visualizeMultiDriverRoutes;
 
+    <!-- LIVE DRIVER MARKER -->
+
+    // keep a marker per truck
+  const liveMarkers = {};
+  const colors = ['red','blue','green','orange','purple','cyan','magenta'];
+
+  async function refreshAllMarkers() {
+    try {
+      // fetch array of {vehicle_no,lat,lon}
+      const res = await fetch('/routeOptimization/api/live-coordinates');
+      const list = await res.json();
+      list.forEach((d,i) => {
+        const pos = [d.lat, d.lon];
+        if (!liveMarkers[d.vehicle_no]) {
+          // new truck: give it a color & popup
+          const c = colors[i % colors.length];
+          liveMarkers[d.vehicle_no] = L.circleMarker(pos,{
+            radius:8, color:c, fillColor:c, fillOpacity:1
+          })
+          .addTo(map)
+          .bindPopup(`Truck ${d.vehicle_no}`);
+        } else {
+          // move existing marker
+          liveMarkers[d.vehicle_no].setLatLng(pos);
+        }
+      });
+    } catch(e) {
+      console.error('could not refresh live coords', e);
+    }
+  }
+
+  // initial + every 2m
+  refreshAllMarkers();
+  setInterval(refreshAllMarkers, 120000);
+
   </script>
 </body>
 </html>
