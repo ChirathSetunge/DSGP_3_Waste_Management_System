@@ -125,105 +125,97 @@
      .addTo(map)
      .bindPopup("Your Home");
 
-    // ─── Only if a route is assigned ─────────────────────────────────────────────
-    if (assignedDriverNo !== "N/A") {
-      // 1) Truck start marker
-      const truckIcon = L.icon({
-        iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
-        iconSize: [35, 35],
-        iconAnchor: [17, 35]
-      });
-      L.marker([driverStart[0], driverStart[1]], { icon: truckIcon })
-       .addTo(map)
-       .bindPopup("Driver Start");
+    // ─── Live‐truck marker & route polyline placeholders ─────────────────────────
+    let liveDriverMarker = null;
+    let liveRouteLine    = null;
 
-      // 2) Call OSRM for a real-road route
+    // ─── Draw a fresh OSRM route from (startLat, startLon) → your home ───────────
+    async function drawRoute(startLat, startLon) {
       const osrmUrl =
         `https://router.project-osrm.org/route/v1/driving/` +
-        `${driverStart[1]},${driverStart[0]};${citizenLon},${citizenLat}` +
+        `${startLon},${startLat};${citizenLon},${citizenLat}` +
         `?overview=full&geometries=geojson`;
 
-      fetch(osrmUrl)
-        .then(r => r.json())
-        .then(data => {
-          const route = data.routes && data.routes[0];
-          if (!route) throw new Error("No route found");
+      try {
+        const resp = await fetch(osrmUrl);
+        const json = await resp.json();
+        const route = json.routes && json.routes[0];
+        if (!route) throw new Error("No route returned");
 
-          // Draw the road-following polyline
-          const coords = route.geometry.coordinates.map(pt => [pt[1], pt[0]]);
-          L.polyline(coords, { color: "blue", weight: 4 })
-           .addTo(map)
-           .bindPopup(`Route to your home`);
+        // remove old line if present
+        if (liveRouteLine) map.removeLayer(liveRouteLine);
 
-          // distance in km
-          const distKm = (route.distance / 1000).toFixed(2);
+        // draw new
+        const coords = route.geometry.coordinates.map(pt => [pt[1], pt[0]]);
+        liveRouteLine = L.polyline(coords, { color: "blue", weight: 4 })
+                         .addTo(map);
 
-          // compute how many stops before this citizen
-          let citizenIndex = -1;
-          for (let i = 0; i < driverRoute.length; i++) {
-            if (
-              Math.abs(driverRoute[i][0] - citizenLat) < tolerance &&
-              Math.abs(driverRoute[i][1] - citizenLon) < tolerance
-            ) {
-              citizenIndex = i;
-              break;
-            }
+        // compute distance & ETA
+        const distKm = (route.distance / 1000).toFixed(2);
+
+        // count stops before you
+        let citizenIndex = -1;
+        for (let i = 0; i < driverRoute.length; i++) {
+          if (
+            Math.abs(driverRoute[i][0] - citizenLat) < tolerance &&
+            Math.abs(driverRoute[i][1] - citizenLon) < tolerance
+          ) {
+            citizenIndex = i;
+            break;
           }
-          const stopsBefore = citizenIndex > 0 ? (citizenIndex - 1) : 0;
-          const stopsDelay = stopsBefore * stopTimeMinutes;
+        }
+        const stopsBefore = citizenIndex > 0 ? (citizenIndex - 1) : 0;
+        const stopsDelay  = stopsBefore * stopTimeMinutes;
 
-          // travel time (min) + stops delay
-          const drivingMinutes = (route.distance / 1000 / averageSpeed) * 60;
-          const totalMinutes   = drivingMinutes + stopsDelay;
+        const driveMin    = (route.distance / 1000 / averageSpeed) * 60;
+        const totalMin    = driveMin + stopsDelay;
 
-          // update panel
-          document.getElementById("truckInfo").textContent   = `Truck: ${assignedDriverNo}`;
-          document.getElementById("distanceInfo").textContent = `Distance: ${distKm} km`;
-          document.getElementById("etaInfo").textContent      = `ETA: ${totalMinutes.toFixed(1)} min`;
-        })
-        .catch(err => {
-          console.error("Routing error:", err);
-          document.getElementById("truckInfo").textContent   = `No Route`;
-          document.getElementById("distanceInfo").textContent = `Distance: -- km`;
-          document.getElementById("etaInfo").textContent      = `ETA: -- min`;
-        });
-    } else {
-      // ─── No route (no waste submitted) ────────────────────────────────────
-      document.getElementById("truckInfo").textContent   = `No Pickup Route`;
-      document.getElementById("distanceInfo").textContent = `Distance: -- km`;
-      document.getElementById("etaInfo").textContent      = `ETA: -- min`;
-    }
-
-    <!-- LIVE DRIVER MARKER -->
-
-    let liveDriverMarker;
-  async function updateMyDriver() {
-    if (assignedDriverNo === "N/A") return;
-    try {
-      const res = await fetch(
-        `/routeOptimization/api/live-coordinates?vehicle=${assignedDriverNo}`
-      );
-      const d = await res.json();
-      const pos = [d.lat, d.lon];
-      if (!liveDriverMarker) {
-        liveDriverMarker = L.circleMarker(pos, {
-          radius: 8,
-          color: 'red',
-          fillColor: 'red',
-          fillOpacity: 1
-        })
-        .addTo(map)
-        .bindPopup(`Truck ${assignedDriverNo}`);
-      } else {
-        liveDriverMarker.setLatLng(pos);
+        // update panel
+        document.getElementById("truckInfo").textContent    = `Truck: ${assignedDriverNo}`;
+        document.getElementById("distanceInfo").textContent = `Distance: ${distKm} km`;
+        document.getElementById("etaInfo").textContent      = `ETA: ${totalMin.toFixed(1)} min`;
+      } catch (err) {
+        console.error("Routing error:", err);
+        document.getElementById("truckInfo").textContent    = `No Route`;
+        document.getElementById("distanceInfo").textContent = `Distance: -- km`;
+        document.getElementById("etaInfo").textContent      = `ETA: -- min`;
       }
-    } catch (err) {
-      console.error('failed to fetch my driver coords', err);
     }
-  }
 
-  updateMyDriver();
-  setInterval(updateMyDriver, 120000);
+    // ─── Fetch the truck’s live coords, move its marker, then re‐draw route ───────
+    async function updateMyDriver() {
+      if (assignedDriverNo === "N/A") return;
+
+      try {
+        const res = await fetch(
+          `/routeOptimization/api/live-coordinates?vehicle=${assignedDriverNo}`
+        );
+        const d = await res.json();
+        if (!d.lat || !d.lon) throw new Error("no coords");
+
+        // update or create marker
+        const pos = [d.lat, d.lon];
+        if (!liveDriverMarker) {
+          liveDriverMarker = L.circleMarker(pos, {
+            radius: 8, color: 'red', fillColor: 'red', fillOpacity: 1
+          })
+          .addTo(map)
+          .bindPopup(`Truck ${assignedDriverNo}`);
+        } else {
+          liveDriverMarker.setLatLng(pos);
+        }
+
+        // redraw route from this live position
+        drawRoute(d.lat, d.lon);
+
+      } catch (err) {
+        console.error("Failed to fetch/update live driver coords:", err);
+      }
+    }
+
+    // ─── Kick‐off & poll every 2 minutes ──────────────────────────────────────────
+    updateMyDriver();
+    setInterval(updateMyDriver, 120_000);
 
   </script>
 </body>
