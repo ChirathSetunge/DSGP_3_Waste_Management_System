@@ -1,3 +1,7 @@
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Disable GPU usage for TensorFlow
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"   # Suppress TF warnings
+
 from flask import Flask, render_template
 from shared import shared_bp, db
 from Route_Optimization_Gihanga import route_optimization_bp
